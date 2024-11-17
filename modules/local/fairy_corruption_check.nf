@@ -22,7 +22,7 @@ process CORRUPTION_CHECK {
     def busco_parameter = busco_val ? "-b" : ""
     def container_version = "base_v2.1.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
-    def script = params.ica ? "python ${params.ica_path}/fairy_proc.sh" : "fairy_proc.sh"
+    def script = "fairy_proc.sh"
 """
     #set +e
     #check for file integrity and log errors

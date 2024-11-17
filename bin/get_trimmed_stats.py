@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 import pandas as pd
 from datetime import date
 
+
 ##Makes pre- and post-filtering QC outputs
 ##Usage: >python3 FastP_QC.py paired_fastp.json single_fastp_json Isolate_Name
 ##Written by Rich Stanton (njr5@cdc.gov) and Nick Vlachos (nvx4@cdc.gov)
@@ -23,19 +24,24 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Compare raw and trimmed read statistics to check for matching read pairs and summarize QC results."
     )
-    parser.add_argument("-t", "--trimmed_json", dest="trimmed_json", action="store", required=True, help="Json from fastp output on trimmed reads")
-	parser.add_argument("-s", "--single_json", dest="single_json", action="store", required=True, help="Json from fastp output on single reads.")
     parser.add_argument('-r', '--raw_read', dest="raw_read", required=True,
                         help="Path to the raw reads statistics file.")
-    parser.add_argument('-f', '--summary_file', dest="summary_file", required=True,
-                        help="Path to the summary file.")
-	parser.add_argument("-n", "--name", dest="name", action="store", required=True, help="Sample name")
     parser.add_argument('-b', '--busco', dest="busco", action='store_true', default=False,
                         help='Use this flag for CDC pipelines to include BUSCO checks.')
     parser.add_argument('--version', action='version', version=get_version(),
                         help="Show the version of the script.")
-    
-    return parser.parse_args()
+    parser.add_argument("-t", "--trimmed_json", dest="trimmed_json", action="store", required=True, 
+                        help="Json from fastp output on trimmed reads")
+    parser.add_argument("-s", "--single_json", dest="single_json", action="store", required=True, 
+                     help="Json from fastp output on single reads.")
+    parser.add_argument("-n", "--name", dest="name", action="store", required=True, 
+                     help="Sample name")
+    parser.add_argument('-oTC', '--out_trimd_counts', dest="out_trimd_counts", default=False,
+                        help='output file name')    # Argument to show script version
+    parser.add_argument('-oS', '--out_summary', dest="out_summary", default=False,
+                        help='output file name')    # Argument to show script version
+    args = parser.parse_args()
+    return args
 
 def FastP_QC_before(input_json, output_file, name):
     """Makes a QC output file from an input FastP json"""
@@ -44,7 +50,6 @@ def FastP_QC_before(input_json, output_file, name):
     f = open(input_json)
     data = json.load(f)
     f.close()
-
     paired_total_info = data['summary']['before_filtering']
     Q20_Total = str(paired_total_info['q20_bases'])
     Q30_Total = str(paired_total_info['q30_bases'])
@@ -136,12 +141,7 @@ def FastP_QC_after(input_trimmed_json, input_singles_json, output_file, name):
     Out.write(Line)
     Out.close()
 
-def FastP_QC_All(input_paired_json, input_singles_json, name):
-    """Makes a pre- and post-filtering output of trimmed info"""
-    trimmed_output= name + "_trimmed_read_counts.txt"
-    FastP_QC_after(input_paired_json, input_singles_json, trimmed_output, name)
-
-def reads_compare(raw_read_file, trimd_file, summary_file, busco):
+def reads_compare(raw_read_file, trimd_file, outcome_file, busco):
     """Compare read statistics and generate summary."""
     prefix = os.path.splitext(raw_read_file)[0]  # Get the base name for output files
     aggr_read_stats = pd.read_csv(raw_read_file, sep="\t")
@@ -154,20 +154,15 @@ def reads_compare(raw_read_file, trimd_file, summary_file, busco):
         outcome = check_raw_reads(aggr_read_stats, prefix, busco)
 
     # Write the outcome to the summary file
-    with open(summary_file, "a") as tmp:
+    with open(outcome_file, "a") as tmp:
         tmp.write(outcome)
-        tmp.write("\nEnd_of_File")
-
-    # Create a new summary file to avoid overwriting
-    new_summary_file = f"{prefix}_summary_fastp.txt"
-    os.rename(summary_file, new_summary_file)
 
 def check_trimmed_reads(aggr_trimd_stats, prefix, busco):
     """Check trimmed reads statistics and generate summary."""
     approved = f"\nPASSED: There are reads in {prefix} R1/R2 after trimming."
     failure = f"\nFAILED: There are 0 reads in {prefix} R1/R2 after trimming!"
-    
-    if aggr_trimd_stats["R1[reads]"].values[0] > 0 and aggr_trimd_stats["R2[reads]"].values[0] > 0:
+
+    if int(aggr_trimd_stats["R1[reads]"].values[1]) > 0 and int(aggr_trimd_stats["R2[reads]"].values[1]) > 0:
         return approved
     else:
         raw_stats = get_read_stats(aggr_trimd_stats, trimmed=True)
@@ -254,12 +249,14 @@ def write_summary_line(prefix, busco, warning_count, error):
     df = pd.DataFrame(data, columns=column_names)
     df.to_csv(f"{prefix}_summaryline.tsv", sep="\t", index=False)
 
-def main():
-    args = parse_cmdline()
-    FastP_QC_All(args.trimmed_json, args.single_json, args.name)
 
-    trimmed_output= name + "_trimmed_read_counts.txt"
-    reads_compare(args.raw_read, args.trimd_read, trimmed_output, args.summary_file, args.busco)
+def main():
+    args = parse_args()
+    # Run FASTP
+    FastP_QC_after(args.trimmed_json, args.single_json, args.out_trimd_counts, args.name)
+
+    # compare trimd reads
+    reads_compare(args.raw_read, args.out_trimd_counts, args.out_summary, args.busco)
 
 if __name__ == '__main__':
     main()

@@ -15,29 +15,16 @@ process FASTQC {
     script:
     def args = task.ext.args ?: ''
     def container = task.container.toString() - "staphb/fastqc@"
-    // Add soft-links to original FastQs for consistent naming in pipeline
     def prefix = task.ext.prefix ?: "${meta.id}"
-    if (meta.single_end) {
-        """
-        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz
-        fastqc $args --threads $task.cpus ${prefix}.fastq.gz
+    """
+    [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz
+    [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz
+    fastqc $args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz
 
-        cat <<-END_VERSIONS > versions.yml
-        "${task.process}":
-            fastqc: \$( fastqc --version | sed -e "s/FastQC v//g" )
-        END_VERSIONS
-        """
-    } else {
-        """
-        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz
-        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz
-        fastqc $args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz
-
-        cat <<-END_VERSIONS > versions.yml
-        "${task.process}":
-            fastqc: \$( fastqc --version | sed -e "s/FastQC v//g" )
-            fastqc_container: ${container}
-        END_VERSIONS
-        """
-    }
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        fastqc: \$( fastqc --version | sed -e "s/FastQC v//g" )
+        fastqc_container: ${container}
+    END_VERSIONS
+    """
 }

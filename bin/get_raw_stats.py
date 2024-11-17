@@ -31,18 +31,51 @@ def parse_args():
     # Optional argument to include BUSCO checks
     parser.add_argument('-b', '--busco', dest="busco", action='store_true', default=False,
                         help='Include BUSCO checks.')
-    # Argument to show script version
+    parser.add_argument('-oS', '--out_summary', dest="out_summary", default=False,
+                        help='output file name')    # Argument to show script version
+    parser.add_argument('-oRC', '--out_raw_counts', dest="out_raw_counts", default=False,
+                        help='output file name')    # Argument to show script version
     parser.add_argument('--version', action='version', version=get_version(),
                         help="Show the version of the script.")
 
     return parser.parse_args()  # Return the parsed arguments
 
+def all_raw_stats(r1_stats, r2_stats, out_raw_counts, name):
+    """Generates a summary output of raw read counts."""
+    
+    # Get raw statistics for R1 and R2
+    raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent, Q30_R1_bp, Q30_R1_percent = get_raw_stats(r1_stats)
+    raw_R2_reads, raw_R2_bases, Q20_R2_bp, Q20_R2_percent, Q30_R2_bp, Q30_R2_percent = get_raw_stats(r2_stats)
+
+    # Write the raw statistics to the output file
+    write_raw_stats(raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent, 
+                    Q30_R1_bp, Q30_R1_percent, raw_R2_reads, raw_R2_bases, 
+                    Q20_R2_bp, Q20_R2_percent, Q30_R2_bp, Q30_R2_percent, 
+                    out_raw_counts, name)
+
+def get_raw_stats(stats):
+    """Extracts raw statistics from the provided stats file."""
+    with open(stats) as f:
+        lines = f.readlines()  # Read all lines from the stats file
+        if len(lines) < 6:  # Ensure there are enough lines for expected stats
+            raise ValueError(f"File {stats} does not contain enough lines for expected stats.")
+
+        # Parse the statistics from the lines
+        raw_reads = int(lines[0].strip().replace("total reads: ", ""))
+        raw_bases = int(lines[1].strip().replace("total bases: ", ""))
+        Q20_bp = int(lines[2].strip().replace("q20 bases: ", ""))
+        Q30_bp = int(lines[3].strip().replace("q30 bases: ", ""))
+        Q20_percent = str(round(float(lines[4].strip().replace("q20 percentage: ", "")) / 100, 4))
+        Q30_percent = str(round(float(lines[5].strip().replace("q30 percentage: ", "")) / 100, 4))
+
+    return raw_reads, raw_bases, Q20_bp, Q20_percent, Q30_bp, Q30_percent  # Return the extracted values
+
 def write_raw_stats(raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent, 
                     Q30_R1_bp, Q30_R1_percent, raw_R2_reads, raw_R2_bases, 
                     Q20_R2_bp, Q20_R2_percent, Q30_R2_bp, Q30_R2_percent, 
-                    output_file, name):
+                    out_raw_counts, name):
     """Creates a QC output file from parsed outputs of q30.py files."""
-    with open(output_file, 'w') as f:
+    with open(out_raw_counts, 'w') as f:
         # Write the header for the output file
         header = ('Name\tR1[reads]\tR1[bp]\tR2[reads]\tR2[bp]\tQ20_Total_[bp]\t'
                   'Q30_Total_[bp]\tQ20_R1_[bp]\tQ20_R2_[bp]\tQ20_R1_[%]\t'
@@ -62,74 +95,41 @@ def write_raw_stats(raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent,
                 f"{Q20_R1_percent}\t{Q20_R2_percent}\t{Q30_R1_bp}\t"
                 f"{Q30_R2_bp}\t{Q30_R1_percent}\t{Q30_R2_percent}\t"
                 f"{Total_Sequenced_bp}\t{Total_Sequenced_reads}\n")
-        f.write(line)  # Write the data line to the output file
+        f.write(line)
 
-def get_raw_stats(stats):
-    """Extracts raw statistics from the provided stats file."""
-    with open(stats) as f:
-        lines = f.readlines()  # Read all lines from the stats file
-        if len(lines) < 6:  # Ensure there are enough lines for expected stats
-            raise ValueError(f"File {stats} does not contain enough lines for expected stats.")
-
-        # Parse the statistics from the lines
-        raw_reads = int(lines[0].strip().replace("total reads: ", ""))
-        raw_bases = int(lines[1].strip().replace("total bases: ", ""))
-        Q20_bp = int(lines[2].strip().replace("q20 bases: ", ""))
-        Q30_bp = int(lines[3].strip().replace("q30 bases: ", ""))
-        Q20_percent = str(round(float(lines[4].strip().replace("q20 percentage: ", "")) / 100, 4))
-        Q30_percent = str(round(float(lines[5].strip().replace("q30 percentage: ", "")) / 100, 4))
-
-    return raw_reads, raw_bases, Q20_bp, Q20_percent, Q30_bp, Q30_percent  # Return the extracted values
-
-def all_raw_stats(r1_stats, r2_stats, name):
-    """Generates a summary output of raw read counts."""
-    raw_output = f"{name}_raw_read_counts.txt"  # Define output filename based on sample name
-    
-    # Get raw statistics for R1 and R2
-    raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent, Q30_R1_bp, Q30_R1_percent = get_raw_stats(r1_stats)
-    raw_R2_reads, raw_R2_bases, Q20_R2_bp, Q20_R2_percent, Q30_R2_bp, Q30_R2_percent = get_raw_stats(r2_stats)
-
-    # Write the raw statistics to the output file
-    write_raw_stats(raw_R1_reads, raw_R1_bases, Q20_R1_bp, Q20_R1_percent, 
-                    Q30_R1_bp, Q30_R1_percent, raw_R2_reads, raw_R2_bases, 
-                    Q20_R2_bp, Q20_R2_percent, Q30_R2_bp, Q30_R2_percent, 
-                    raw_output, name)
-
-def reads_compare(raw_read_file, trimd_file, busco):
+def reads_compare(out_raw_counts, out_summary, trimd_file, busco, name):
     """Compare read statistics and generate summary."""
-    prefix = os.path.splitext(raw_read_file)[0]  # Get the base name for output files
-    aggr_read_stats = pd.read_csv(raw_read_file, sep="\t")  # Load raw read stats into DataFrame
-    summary_file = f"{prefix}_summary.txt"  # Define summary file name
+    # Load raw read stats into DataFrame
+    aggr_read_stats = pd.read_csv(out_raw_counts, sep="\t") 
 
     # Check if there is a trimmed file
     if trimd_file:
         aggr_trimd_stats = pd.read_csv(trimd_file, sep="\t")  # Load trimmed read stats
-        outcome = check_trimmed_reads(aggr_trimd_stats, prefix, busco)  # Check trimmed reads
+        outcome = check_trimmed_reads(aggr_trimd_stats, name, busco)  # Check trimmed reads
     else:
-        outcome = check_raw_reads(aggr_read_stats, prefix, busco)  # Check raw reads
+        outcome = check_raw_reads(aggr_read_stats, name, busco)  # Check raw reads
 
     # Write the outcome to the summary file
-    with open(summary_file, "a") as tmp:
+    with open(out_summary, "a") as tmp:
         tmp.write(outcome)  # Append the outcome to the summary file
-        tmp.write("\nEnd_of_File")  # Indicate the end of the file
 
-def check_trimmed_reads(aggr_trimd_stats, prefix, busco):
+def check_trimmed_reads(aggr_trimd_stats, name, busco):
     """Check trimmed reads statistics and generate summary."""
-    approved = f"\nPASSED: There are reads in {prefix} R1/R2 after trimming."  # Success message
-    failure = f"\nFAILED: There are 0 reads in {prefix} R1/R2 after trimming!"  # Failure message
+    approved = f"\nPASSED: There are reads in {name} R1/R2 after trimming."  # Success message
+    failure = f"\nFAILED: There are 0 reads in {name} R1/R2 after trimming!"  # Failure message
     
     # Check if both R1 and R2 have reads after trimming
     if aggr_trimd_stats["R1[reads]"].values[0] > 0 and aggr_trimd_stats["R2[reads]"].values[0] > 0:
         return approved  # Return success message if condition is met
     else:
         raw_stats = get_read_stats(aggr_trimd_stats, trimmed=True)  # Get raw stats if failed
-        warning_count = write_synopsis(prefix, busco, *raw_stats)  # Write synopsis
-        write_summary_line(prefix, busco, warning_count, "No reads after trimming!")  # Write summary line
+        warning_count = write_synopsis(name, busco, *raw_stats)  # Write synopsis
+        write_summary_line(name, busco, warning_count, "No reads after trimming!")  # Write summary line
         return failure  # Return failure message
 
-def check_raw_reads(aggr_read_stats, prefix, busco):
+def check_raw_reads(aggr_read_stats, name, busco):
     """Check raw reads statistics and generate summary."""
-    approved = f"PASSED: Read pairs for {prefix} are equal."  # Success message
+    approved = f"PASSED: Read pairs for {name} are equal."  # Success message
     failure = "FAILED: The number of reads in R1/R2 are NOT the same!"  # Failure message
 
     # Check if the number of reads in R1 and R2 are equal
@@ -137,8 +137,8 @@ def check_raw_reads(aggr_read_stats, prefix, busco):
         return approved  # Return success message if condition is met
     else:
         raw_stats = get_read_stats(aggr_read_stats, trimmed=False)  # Get raw stats if failed
-        warning_count = write_synopsis(prefix, busco, *raw_stats)  # Write synopsis
-        write_summary_line(prefix, busco, warning_count, "Unequal number of reads in R1/R2!")  # Write summary line
+        warning_count = write_synopsis(name, busco, *raw_stats)  # Write synopsis
+        write_summary_line(name, busco, warning_count, "Unequal number of reads in R1/R2!")  # Write summary line
         return failure  # Return failure message
 
 def get_read_stats(aggr_read_stats, trimmed):
@@ -153,14 +153,14 @@ def get_read_stats(aggr_read_stats, trimmed):
     
     return length_R1, length_R2, reads, pairs, Q30_R1_rounded, Q30_R2_rounded, orphaned_reads  # Return extracted values
 
-def write_synopsis(sample_name, busco, raw_length_R1, raw_length_R2, raw_reads, raw_pairs, raw_Q30_R1_rounded, raw_Q30_R2_rounded, trimd_file, trimd_length_R1, trimd_length_R2, trimd_reads, trimd_pairs, trimd_Q30_R1_rounded, trimd_Q30_R2_rounded, orphaned_reads):
+def write_synopsis(name, busco, raw_length_R1, raw_length_R2, raw_reads, raw_pairs, raw_Q30_R1_rounded, raw_Q30_R2_rounded, trimd_file, trimd_length_R1, trimd_length_R2, trimd_reads, trimd_pairs, trimd_Q30_R1_rounded, trimd_Q30_R2_rounded, orphaned_reads):
     """Write a synopsis of the QC check results."""
     status = "FAILED"  # Initialize status
     warning_count = 0  # Initialize warning count
     Error = "Unequal number of reads in R1/R2!\n" if not trimd_file else "No reads after trimming!\n"  # Error message
 
     # Open the synopsis file for appending
-    with open(f"{sample_name}.synopsis", "a") as f:
+    with open(f"{name}.synopsis", "a") as f:
         today = date.today()  # Get today's date
         f.write("---------- Checking " + sample_name + " for successful completion on ----------\n")
         f.write("Summarized                    : SUCCESS : " + str(today) + "\n")
@@ -201,18 +201,20 @@ def write_synopsis(sample_name, busco, raw_length_R1, raw_length_R2, raw_reads, 
 
     return warning_count  # Return count of warnings
 
-def write_summary_line(prefix, busco, warning_count, error):
+def write_summary_line(name, busco, warning_count, error):
     """Write summary statistics to a TSV file."""
     column_names = ['ID', 'Auto_QC_Outcome', 'Warning_Count', 'Auto_QC_Failure_Reason']
-    data = [[prefix, 'FAIL', warning_count, error]]  # Prepare data for the summary line
+    data = [[name, 'FAIL', warning_count, error]]  # Prepare data for the summary line
     df = pd.DataFrame(data, columns=column_names)  # Create DataFrame from data
-    df.to_csv(f"{prefix}_summaryline.tsv", sep="\t", index=False)  # Write to TSV file
+    df.to_csv(f"{name}_summaryline.tsv", sep="\t", index=False)  # Write to TSV file
 
 def main():
     """Main function to run the script."""
     args = parse_args()  # Parse command-line arguments
-    all_raw_stats(args.r1_stats, args.r2_stats, args.name)  # Collect raw stats
-    reads_compare(f"{args.name}_raw_read_counts.txt", args.trimd_read, args.busco)  # Compare read stats
+
+    # run raw process
+    all_raw_stats(args.r1_stats, args.r2_stats, args.out_raw_counts, args.name)  # Collect raw stats
+    reads_compare(args.out_raw_counts, args.out_summary, args.trimd_read, args.busco, args.name)  # Compare read stats
 
 if __name__ == '__main__':
     main()  # Execute the main function when the script is run

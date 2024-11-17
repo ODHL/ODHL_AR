@@ -36,8 +36,8 @@ include { BBDUK                          } from '../modules/local/bbduk'
 include { FASTP as FASTP_TRIMD           } from '../modules/local/fastp'
 include { FASTP_SINGLES                  } from '../modules/local/fastp_singles'
 include { GET_TRIMD_STATS                } from '../modules/local/get_trimd_stats'
+// include { FASTQC                         } from '../modules/local/fastqc'
 
-// include { FASTQC                      } from '../modules/local/fastqc'
 // include { RENAME_FASTA_HEADERS           } from '../modules/local/rename_fasta_headers'
 // include { GAMMA_S as GAMMA_PF            } from '../modules/local/gammas'
 // include { GAMMA as GAMMA_AR              } from '../modules/local/gamma'
@@ -126,7 +126,7 @@ workflow arANALYZER {
             read_stats_ch, params.run_busco // false says no busco is being run
         )
         ch_versions = ch_versions.mix(GET_RAW_STATS.out.versions)
-        ch_rawStatus=GET_RAW_STATS.out.outcome
+        ch_rawStatus=GET_RAW_STATS.out.raw_outcome
         ch_rawStats=GET_RAW_STATS.out.combined_raw_stats
 
         // Combining reads with output of corruption check
@@ -166,13 +166,13 @@ workflow arANALYZER {
         )
         ch_versions = ch_versions.mix(GET_TRIMD_STATS.out.versions)
 
-        // // combing fastp_trimd information with fairy check of reads to confirm there are reads after filtering
+        // combing fastp_trimd information with fairy check of reads to confirm there are reads after filtering
         // trimd_reads_file_integrity_ch = FASTP_TRIMD.out.reads
         //     .join(GET_TRIMD_STATS.out.outcome.splitCsv(strip:true, by:5)
         //     .map{meta, fairy_outcome -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0], fairy_outcome[3][0], fairy_outcome[4][0]]]}, by: [0,0])
         //     .filter { it[2].findAll {!it.contains('FAILED')}}
 
-        // // Running Fastqc on trimmed reads
+        // Running Fastqc on trimmed reads
         // FASTQC (
         //     trimd_reads_file_integrity_ch
         // )

@@ -187,12 +187,41 @@
         {
             "$ref": "#/$defs/input_output_options"
         },
-        
         {
             "$ref": "#/$defs/institutional_config_options"
         },
         {
             "$ref": "#/$defs/generic_options"
         }
-    ]
+    ],
+    "properties": {
+        "save_trimmed_fail": {
+            "type": "boolean",
+            "default": true
+        },
+        "save_merged": {
+            "type": "boolean",
+            "default": true
+        },
+        "kraken2_db": {
+            "type": "string",
+            "default": "/home/ubuntu/refs/k2/k2_standard_08gb_20240112.tar.gz"
+        },
+        "zipped_sketch": {
+            "type": "string",
+            "default": "/home/ubuntu/workflows/ODHL_AR/assets/databases/REFSEQ_20240124_Bacteria_complete.msh.gz"
+        },
+        "custom_mlstdb": {
+            "type": "string",
+            "default": "/home/ubuntu/workflows/ODHL_AR/assets/databases/mlst_db_20240124.tar.gz"
+        },
+        "bbdukdb": {
+            "type": "string",
+            "default": "/home/ubuntu/workflows/ODHL_AR/assets/databases/phiX.fasta"
+        },
+        "run_busco": {
+            "type": "string",
+            "default": "TRUE"
+        }
+    }
 }
