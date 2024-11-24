@@ -42,7 +42,6 @@ def reads_compare(raw_read_file, trimd_file, summary_file, busco):
     # Write the outcome to the summary file
     with open(summary_file, "a") as tmp:
         tmp.write(outcome)
-        tmp.write("\nEnd_of_File")
 
     # Create a new summary file to avoid overwriting
     new_summary_file = f"{prefix}_summary_fastp.txt"

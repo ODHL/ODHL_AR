@@ -29,14 +29,14 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 ========================================================================================
 */
 
-// include { ASSET_CHECK                    } from './modules/local/asset_check'
+include { ASSET_CHECK                    } from '../modules/local/asset_check'
 include { CORRUPTION_CHECK               } from '../modules/local/fairy_corruption_check'
 include { GET_RAW_STATS                  } from '../modules/local/get_raw_stats'
 include { BBDUK                          } from '../modules/local/bbduk'
 include { FASTP as FASTP_TRIMD           } from '../modules/local/fastp'
 include { FASTP_SINGLES                  } from '../modules/local/fastp_singles'
 include { GET_TRIMD_STATS                } from '../modules/local/get_trimd_stats'
-// include { FASTQC                         } from '../modules/local/fastqc'
+include { FASTQC                         } from '../modules/local/fastqc'
 
 // include { RENAME_FASTA_HEADERS           } from '../modules/local/rename_fasta_headers'
 // include { GAMMA_S as GAMMA_PF            } from '../modules/local/gammas'
@@ -67,7 +67,7 @@ include { GET_TRIMD_STATS                } from '../modules/local/get_trimd_stat
 ========================================================================================
 */
 
-// include { KRAKEN2_WF as KRAKEN2_TRIMD    } from '../subworkflows/odhl/kraken2krona'
+include { KRAKEN2_WF as KRAKEN2_TRIMD    } from '../subworkflows/local/kraken2krona'
 // include { GENERATE_PIPELINE_STATS_WF     } from '../subworkflows/odhl/generate_pipeline_stats'
 // include { SPADES_WF                      } from '../subworkflows/odhl/spades_failure'
 // include { KRAKEN2_WF as KRAKEN2_ASMBLD   } from '../subworkflows/odhl/kraken2krona'
@@ -98,13 +98,16 @@ workflow arANALYZER {
 
     main:
         // Allow relative paths for krakendb argument
-        ch_kraken2_db  = Channel.fromPath(params.kraken2_db, relative: true)
+        // ch_kraken2_db  = Channel.fromPath(params.kraken2_db, relative: true)
 
         // unzip any zipped databases
-        // ASSET_CHECK (
-        //     params.zipped_sketch, params.custom_mlstdb, kraken2_db_path
-        // )
-        // ch_versions = ch_versions.mix(ASSET_CHECK.out.versions)
+        ASSET_CHECK (
+            // params.zipped_sketch, 
+            // params.custom_mlstdb, 
+            params.kraken2_db
+        )
+        ch_versions = ch_versions.mix(ASSET_CHECK.out.versions)
+        ch_path_kraken=ASSET_CHECK.out.kraken_db
 
         // fairy compressed file corruption check & generate read stats
         CORRUPTION_CHECK (
@@ -114,7 +117,7 @@ workflow arANALYZER {
         ch_versions = ch_versions.mix(CORRUPTION_CHECK.out.versions)
         ch_corruptionStatus=CORRUPTION_CHECK.out.outcome
 
-        //Combining reads with output of corruption check. By=2 is for getting R1 and R2 results
+        // Combining reads with output of corruption check. By=2 is for getting R1 and R2 results
         read_stats_ch = ch_reads
             .join(ch_corruptionStatus, by: [0,0])
             .join(ch_corruptionStatus.splitCsv(strip:true, by:2)
@@ -147,16 +150,18 @@ workflow arANALYZER {
         )
         ch_versions = ch_versions.mix(FASTP_TRIMD.out.versions)
         ch_trimmedJson=FASTP_TRIMD.out.json
+        ch_trmdReads=FASTP_TRIMD.out.reads
+        ch_trmdFailed=FASTP_TRIMD.out.reads_fail
 
         // Rerun on unpaired reads to get stats, nothing removed
         FASTP_SINGLES (
-            FASTP_TRIMD.out.reads_fail
+            ch_trmdFailed
         )
         ch_versions = ch_versions.mix(FASTP_SINGLES.out.versions)
         ch_singlesJson=FASTP_SINGLES.out.json
 
         // Combining fastp json outputs based on meta.id
-        fastp_json_ch = FASTP_TRIMD.out.json.join(FASTP_SINGLES.out.json, by: [0,0])
+        fastp_json_ch = ch_trimmedJson.join(ch_singlesJson, by: [0,0])
         .join(ch_rawStats, by: [0,0])\
         .join(ch_corruptionStatus, by: [0,0])
 
@@ -165,23 +170,34 @@ workflow arANALYZER {
             fastp_json_ch, params.run_busco // false says no busco is being run
         )
         ch_versions = ch_versions.mix(GET_TRIMD_STATS.out.versions)
+        ch_trimmd_outcome=GET_TRIMD_STATS.out.trimmd_outcome
+        ch_fastp_total_qc=GET_TRIMD_STATS.out.fastp_total_qc
 
         // combing fastp_trimd information with fairy check of reads to confirm there are reads after filtering
-        // trimd_reads_file_integrity_ch = FASTP_TRIMD.out.reads
-        //     .join(GET_TRIMD_STATS.out.outcome.splitCsv(strip:true, by:5)
-        //     .map{meta, fairy_outcome -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0], fairy_outcome[3][0], fairy_outcome[4][0]]]}, by: [0,0])
-        //     .filter { it[2].findAll {!it.contains('FAILED')}}
+        trimd_reads_file_integrity_ch = ch_trmdReads
+            .join(ch_trimmd_outcome.splitCsv(strip:true, by:5)
+            .map{meta, fairy_outcome -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0]]]}, by: [0,0])
+            .filter { it[2].findAll {!it.contains('FAILED')}}
 
         // Running Fastqc on trimmed reads
-        // FASTQC (
-        //     trimd_reads_file_integrity_ch
-        // )
-        // ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+        FASTQC (
+            trimd_reads_file_integrity_ch
+        )
+        ch_versions = ch_versions.mix(FASTQC.out.versions.first())
 
-        // // Checking for Contamination in trimmed reads, creating krona plots and best hit files
-        // KRAKEN2_TRIMD (
-        //     FASTP_TRIMD.out.reads, GET_TRIMD_STATS.out.outcome, "trimd", GET_TRIMD_STATS.out.fastp_total_qc, [], ASSET_CHECK.out.kraken_db, "reads"
-        // )
+        // Checking for Contamination in trimmed reads, creating krona plots and best hit files
+        // fasta           // channel: tuple (meta) path(read_R1, reads_R2) or tuple (meta) path(scaffolds)
+        // fairy_check     // GET_RAW_STATS.out.outcome
+        // type            // val: trimd, asmbld or wtasmbld 
+        // qc_stats        //GATHERING_READ_QC_STATS.out.fastp_total_qc
+        // kraken2_db_path
+        KRAKEN2_TRIMD (
+            ch_trmdReads, 
+            ch_trimmd_outcome, 
+            "trimd", 
+            ch_fastp_total_qc, 
+            ch_path_kraken
+        )
         // ch_versions = ch_versions.mix(KRAKEN2_TRIMD.out.versions)
 
         // SPADES_WF (
