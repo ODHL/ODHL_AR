@@ -17,10 +17,9 @@ process KRAKEN_BEST_HIT {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def container_version = "base_v2.1.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
-    def script = params.ica ? "${params.ica_path}/kraken2_best_hit.sh" : "kraken2_best_hit.sh"
-    def terra = params.terra ? "-t terra" : ""
+    def script = "kraken2_best_hit.sh"
     """
-    ${script} -i $kraken_summary -q $count_file -n ${prefix} $terra
+    ${script} -i $kraken_summary -q $count_file -n ${prefix}
 
     script_version=\$(${script} -V)
 

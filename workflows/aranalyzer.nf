@@ -29,22 +29,23 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 ========================================================================================
 */
 
-include { ASSET_CHECK                    } from '../modules/local/asset_check'
-include { CORRUPTION_CHECK               } from '../modules/local/fairy_corruption_check'
-include { GET_RAW_STATS                  } from '../modules/local/get_raw_stats'
-include { BBDUK                          } from '../modules/local/bbduk'
-include { FASTP as FASTP_TRIMD           } from '../modules/local/fastp'
-include { FASTP_SINGLES                  } from '../modules/local/fastp_singles'
-include { GET_TRIMD_STATS                } from '../modules/local/get_trimd_stats'
-include { FASTQC                         } from '../modules/local/fastqc'
-
-// include { RENAME_FASTA_HEADERS           } from '../modules/local/rename_fasta_headers'
-// include { GAMMA_S as GAMMA_PF            } from '../modules/local/gammas'
-// include { GAMMA as GAMMA_AR              } from '../modules/local/gamma'
-// include { GAMMA as GAMMA_HV              } from '../modules/local/gamma'
+include { ASSET_CHECK                       } from '../modules/local/asset_check'
+include { CORRUPTION_CHECK                  } from '../modules/local/fairy_corruption_check'
+include { GET_RAW_STATS                     } from '../modules/local/get_raw_stats'
+include { BBDUK                             } from '../modules/local/bbduk'
+include { FASTP as FASTP_TRIMD              } from '../modules/local/fastp'
+include { FASTP_SINGLES                     } from '../modules/local/fastp_singles'
+include { GET_TRIMD_STATS                   } from '../modules/local/get_trimd_stats'
+include { FASTQC                            } from '../modules/local/fastqc'
+include { GENERATE_PIPELINE_STATS_FAILURE   } from '../modules/local/generate_pipeline_stats_failure'
+include { CREATE_SUMMARY_LINE_FAILURE       } from '../modules/local/phoenix_summary_line_failure'
+include { RENAME_FASTA_HEADERS              } from '../modules/local/rename_fasta_headers'
+include { BBMAP_REFORMAT                    } from '../modules/local/contig_less500'
+include { SCAFFOLD_COUNT_CHECK              } from '../modules/local/fairy_scaffold_count_check'
+include { GAMMA as GAMMA_HV                 } from '../modules/local/gamma'
+include { GAMMA as GAMMA_AR                 } from '../modules/local/gamma'
+include { GAMMA_S as GAMMA_PF               } from '../modules/local/gammas'
 // include { MLST                           } from '../modules/local/mlst'
-// include { BBMAP_REFORMAT                 } from '../modules/odhl/contig_less500'
-// include { SCAFFOLD_COUNT_CHECK           } from '../modules/local/fairy_scaffold_count_check'
 // include { QUAST                          } from '../modules/local/quast'
 // include { MASH_DIST                      } from '../modules/local/mash_distance'
 // include { FASTANI                        } from '../modules/local/fastani'
@@ -67,12 +68,15 @@ include { FASTQC                         } from '../modules/local/fastqc'
 ========================================================================================
 */
 
-include { KRAKEN2_WF as KRAKEN2_TRIMD    } from '../subworkflows/local/kraken2krona'
+include { KRAKEN2_WF as KRAKEN2_TRIMD           } from '../subworkflows/local/kraken2'
+include { SPADES_WF                             } from '../subworkflows/local/spades'
 // include { GENERATE_PIPELINE_STATS_WF     } from '../subworkflows/odhl/generate_pipeline_stats'
-// include { SPADES_WF                      } from '../subworkflows/odhl/spades_failure'
 // include { KRAKEN2_WF as KRAKEN2_ASMBLD   } from '../subworkflows/odhl/kraken2krona'
 // include { KRAKEN2_WF as KRAKEN2_WTASMBLD } from '../subworkflows/odhl/kraken2krona'
 // include { DO_MLST                        } from '../subworkflows/local/do_mlst'
+
+// include { GENERATE_PIPELINE_STATS_FAILURE_EXQC } from '../../modules/local/generate_pipeline_stats_failure_exqc'
+
 
 /*
 ========================================================================================
@@ -159,6 +163,7 @@ workflow arANALYZER {
         )
         ch_versions = ch_versions.mix(FASTP_SINGLES.out.versions)
         ch_singlesJson=FASTP_SINGLES.out.json
+        ch_singlesReads=FASTP_SINGLES.out.reads
 
         // Combining fastp json outputs based on meta.id
         fastp_json_ch = ch_trimmedJson.join(ch_singlesJson, by: [0,0])
@@ -198,70 +203,119 @@ workflow arANALYZER {
             ch_fastp_total_qc, 
             ch_path_kraken
         )
-        // ch_versions = ch_versions.mix(KRAKEN2_TRIMD.out.versions)
+        ch_versions = ch_versions.mix(KRAKEN2_TRIMD.out.versions)
+        ch_krakenReport =  KRAKEN2_TRIMD.out.report
+        ch_krakenBestHit = KRAKEN2_TRIMD.out.k2_bh_summary
 
-        // SPADES_WF (
-        //     FASTP_SINGLES.out.reads, \
-        //     FASTP_TRIMD.out.reads, \
-        //     GET_TRIMD_STATS.out.fastp_total_qc, \
-        //     GET_RAW_STATS.out.combined_raw_stats, \
-        //     [], \
-        //     KRAKEN2_TRIMD.out.report, \
-        //     KRAKEN2_TRIMD.out.krona_html, \
-        //     KRAKEN2_TRIMD.out.k2_bh_summary, \
-        //     params.extended_qc
-        // )
-        // ch_versions = ch_versions.mix(SPADES_WF.out.versions)
+        // single_reads      // channel: tuple val(meta), path(reads), path(single_reads): FASTP_SINGLES.out.reads
+        // paired_reads      // channel: tuple val(meta), path(reads), path(paired_reads):FASTP_TRIMD.out.reads.map
+        // fastp_total_qc    // channel: tuple (meta) path(fastp_total_qc): GATHERING_READ_QC_STATS.out.fastp_total_qc
+        // fastp_raw_qc      // channel: tuple (meta) path(fastp_raw_qc): GATHERING_READ_QC_STATS.out.fastp_raw_qc
+        // report            // channel: tuple (meta) path(report): KRAKEN2_TRIMD.out.report
+        // k2_bh_summary     // channel: tuple (meta) path(k2_bh_summary): KRAKEN2_TRIMD.out.k2_bh_summary
+        // Combining paired end reads and unpaired reads that pass QC filters, both get passed to Spades
+        passing_reads_ch = ch_trmdReads.map{        meta, reads          -> [[id:meta.id],reads]}\
+            .join(ch_singlesReads.map{              meta, reads          -> [[id:meta.id],reads]},          by: [0])\
+            .join(ch_krakenBestHit.map{             meta, ksummary       -> [[id:meta.id],ksummary]},       by: [0])\
+            .join(ch_rawStats.map{                  meta, fastp_raw_qc   -> [[id:meta.id],fastp_raw_qc]},   by: [0])\
+            .join(ch_fastp_total_qc.map{            meta, fastp_total_qc -> [[id:meta.id],fastp_total_qc]}, by: [0])\
+            .join(ch_krakenReport.map{              meta, report         -> [[id:meta.id],report]},         by: [0])
 
-        // // Rename scaffold headers
-        // RENAME_FASTA_HEADERS (
-        //     SPADES_WF.out.spades_ch
-        // )
-        // ch_versions = ch_versions.mix(RENAME_FASTA_HEADERS.out.versions)
+        SPADES_WF (
+            passing_reads_ch,
+            ch_krakenBestHit
+        )
+        ch_versions = ch_versions.mix(SPADES_WF.out.versions)
+        ch_spadesOutcome = SPADES_WF.out.spades_outcome
+        ch_taxaFailure = SPADES_WF.out.taxaFailure
+        ch_spadesScaffolds = SPADES_WF.out.ch_spadesScaffolds.map{meta, scaffolds -> [ [id:meta.id, single_end:true], scaffolds]} 
+        //single end needs to be true for kraken2 weighted and assembled steps
 
-        // // Removing scaffolds <500bp
-        // BBMAP_REFORMAT (
-        //     RENAME_FASTA_HEADERS.out.renamed_scaffolds
-        // )
-        // ch_versions = ch_versions.mix(BBMAP_REFORMAT.out.versions)
-
-        // // Combine bbmap log with the fairy outcome file
-        // scaffold_check_ch = BBMAP_REFORMAT.out.log.map{      meta, log                -> [[id:meta.id], log]}\
-        // .join(GET_TRIMD_STATS.out.outcome.map{               meta, outcome            -> [[id:meta.id], outcome]},    by: [0])\
-        // .join(GET_RAW_STATS.out.combined_raw_stats.map{      meta, combined_raw_stats -> [[id:meta.id], combined_raw_stats]}, by: [0])\
-        // .join(GET_TRIMD_STATS.out.fastp_total_qc.map{        meta, fastp_total_qc     -> [[id:meta.id], fastp_total_qc]},     by: [0])\
-        // .join(KRAKEN2_TRIMD.out.report.map{                  meta, report             -> [[id:meta.id], report]},             by: [0])\
-        // .join(KRAKEN2_TRIMD.out.k2_bh_summary.map{           meta, k2_bh_summary      -> [[id:meta.id], k2_bh_summary]},      by: [0])\
-        // .join(KRAKEN2_TRIMD.out.krona_html.map{              meta, krona_html         -> [[id:meta.id], krona_html]},         by: [0])
-
-        // // Checking that there are still scaffolds left after filtering
-        // SCAFFOLD_COUNT_CHECK (
-        //     scaffold_check_ch, params.extended_qc, params.coverage, params.nodes, params.names
-        // )
-        // ch_versions = ch_versions.mix(SCAFFOLD_COUNT_CHECK.out.versions)
-
-        // //combing scaffolds with scaffold check information to ensure processes that need scaffolds only run when there are scaffolds in the file
-        // filtered_scaffolds_ch = BBMAP_REFORMAT.out.filtered_scaffolds.map{    meta, filtered_scaffolds -> [[id:meta.id], filtered_scaffolds]}
-        //     .join(SCAFFOLD_COUNT_CHECK.out.outcome.splitCsv(strip:true, by:5)
-        //     .map{meta, fairy_outcome      -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0], fairy_outcome[3][0], fairy_outcome[4][0]]]}, by: [0])
-        //     .filter { it[2].findAll {it.contains('PASSED: More than 0 scaffolds')}}
+        // Generate pipeline stats for case when spades fails to create scaffolds
+        pipeline_stats_ch = ch_rawStats.map {  meta, fastp_raw_qc -> [[id: meta.id], fastp_raw_qc] }
+            .join(ch_fastp_total_qc.map {          meta, fastp_total_qc -> [[id: meta.id], fastp_total_qc]}, by: [0])
+            .join(ch_krakenReport.map {                  meta, report -> [[id: meta.id], report] }, by: [0])
+            .join(ch_krakenBestHit.map {        meta, ksummary -> [[id: meta.id], ksummary] }, by: [0])
+            .join(ch_taxaFailure.map {          meta, taxonomy -> [[id: meta.id], taxonomy] }, by: [0])
+            .join(ch_spadesOutcome.splitCsv(strip: true).map { meta, spades_outcome -> [[id: meta.id], spades_outcome] }, by: [0])
         
-        // // Running gamma to identify hypervirulence genes in scaffolds
-        // GAMMA_HV (
-        //     filtered_scaffolds_ch, params.hvgamdb
-        // )
-        // ch_versions = ch_versions.mix(GAMMA_HV.out.versions)
+        GENERATE_PIPELINE_STATS_FAILURE (
+            pipeline_stats_ch, 
+            params.coverage
+        )
+        ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS_FAILURE.out.versions)
 
-        // // Running gamma to identify AR genes in scaffolds
-        // GAMMA_AR (
-        //     filtered_scaffolds_ch, params.ardb
-        // )
-        // ch_versions = ch_versions.mix(GAMMA_AR.out.versions)
+        // Create one line summary for case when spades fails to create scaffolds
+        line_summary_ch = GENERATE_PIPELINE_STATS_FAILURE.out.pipeline_stats.map { meta, pipeline_stats -> [[id: meta.id], pipeline_stats]}
+            .join(ch_fastp_total_qc.map {                                   meta, fastp_total_qc -> [[id: meta.id], fastp_total_qc]}, by: [0])
+            .join(ch_krakenBestHit.map {                                    meta, ksummary -> [[id: meta.id], ksummary]}, by: [0])
+            .join(ch_taxaFailure.map {                                      meta, taxonomy -> [[id: meta.id], taxonomy]}, by: [0])
+            .join(ch_spadesOutcome.splitCsv(strip: true).map {              meta, spades_outcome -> [[id: meta.id], spades_outcome]}, by: [0])
 
-        // GAMMA_PF (
-        //     filtered_scaffolds_ch, params.gamdbpf
-        // )
-        // ch_versions = ch_versions.mix(GAMMA_PF.out.versions)
+        CREATE_SUMMARY_LINE_FAILURE (
+            line_summary_ch
+        )
+        ch_versions = ch_versions.mix(CREATE_SUMMARY_LINE_FAILURE.out.versions)
+        line_summary = CREATE_SUMMARY_LINE_FAILURE.out.line_summary
+
+        // Rename scaffold headers
+        RENAME_FASTA_HEADERS (
+            ch_spadesScaffolds
+        )
+        ch_versions = ch_versions.mix(RENAME_FASTA_HEADERS.out.versions)
+        ch_renamedScaffolds = RENAME_FASTA_HEADERS.out.renamed_scaffolds
+
+        // Removing scaffolds <500bp
+        BBMAP_REFORMAT (
+            ch_renamedScaffolds
+        )
+        ch_versions             = ch_versions.mix(BBMAP_REFORMAT.out.versions)
+        ch_bbmapLog             = BBMAP_REFORMAT.out.log
+        ch_bbmapFiltScaffolds   = BBMAP_REFORMAT.out.filtered_scaffolds
+
+        // Combine bbmap log with the fairy outcome file
+        scaffold_check_ch = ch_bbmapLog.map{                     meta, log                -> [[id:meta.id], log]}\
+            .join(ch_trimmd_outcome.map{                         meta, outcome            -> [[id:meta.id], outcome]},    by: [0])\
+            .join(ch_rawStats.map{      meta, combined_raw_stats -> [[id:meta.id], combined_raw_stats]}, by: [0])\
+            .join(ch_fastp_total_qc.map{        meta, fastp_total_qc     -> [[id:meta.id], fastp_total_qc]},     by: [0])\
+            .join(ch_krakenReport.map{                  meta, report             -> [[id:meta.id], report]},             by: [0])\
+            .join(ch_krakenBestHit.map{           meta, k2_bh_summary      -> [[id:meta.id], k2_bh_summary]},      by: [0])
+
+        // Checking that there are still scaffolds left after filtering
+        SCAFFOLD_COUNT_CHECK (
+            scaffold_check_ch, 
+            params.coverage, 
+            params.nodes, 
+            params.names
+        )
+        ch_versions         = ch_versions.mix(SCAFFOLD_COUNT_CHECK.out.versions)
+        ch_scaffoldOutcome  = SCAFFOLD_COUNT_CHECK.out.outcome
+
+        //combing scaffolds with scaffold check information to ensure processes that need scaffolds only run when there are scaffolds in the file
+        filtered_scaffolds_ch = ch_bbmapFiltScaffolds.map{    meta, filtered_scaffolds -> [[id:meta.id], filtered_scaffolds]}
+            .join(ch_scaffoldOutcome.splitCsv(strip:true, by:5)
+            .map{meta, fairy_outcome      -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0], fairy_outcome[3][0], fairy_outcome[4][0]]]}, by: [0])
+            .filter { it[2].findAll {it.contains('PASSED: More than 0 scaffolds')}}
+        
+        // Running gamma to identify hypervirulence genes in scaffolds
+        GAMMA_HV (
+            filtered_scaffolds_ch, 
+            params.hvgamdb
+        )
+        ch_versions = ch_versions.mix(GAMMA_HV.out.versions)
+
+        // Running gamma to identify AR genes in scaffolds
+        GAMMA_AR (
+            filtered_scaffolds_ch, 
+            params.ardb
+        )
+        ch_versions = ch_versions.mix(GAMMA_AR.out.versions)
+
+        GAMMA_PF (
+            filtered_scaffolds_ch, 
+            params.gamdbpf
+        )
+        ch_versions = ch_versions.mix(GAMMA_PF.out.versions)
 
         // // Getting Assembly Stats
         // QUAST (
@@ -319,7 +373,7 @@ workflow arANALYZER {
         // // Combining weighted kraken report with the FastANI hit based on meta.id
         // best_hit_ch = KRAKEN2_WTASMBLD.out.k2_bh_summary.map{meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary]}\
         // .join(FORMAT_ANI.out.ani_best_hit.map{               meta, ani_best_hit  -> [[id:meta.id], ani_best_hit ]},  by: [0])\
-        // .join(KRAKEN2_TRIMD.out.k2_bh_summary.map{           meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary ]}, by: [0])
+        // .join(ch_krakenBestHit.map{           meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary ]}, by: [0])
 
         // // Getting ID from either FastANI or if fails, from Kraken2
         // DETERMINE_TAXA_ID (
@@ -387,12 +441,12 @@ workflow arANALYZER {
         // }
 
         // GENERATE_PIPELINE_STATS_WF (
-        //     GET_RAW_STATS.out.combined_raw_stats, \
-        //     GET_TRIMD_STATS.out.fastp_total_qc, \
+        //     ch_rawStats, \
+        //     ch_fastp_total_qc, \
         //     fullgene_results, \
-        //     KRAKEN2_TRIMD.out.report, \
+        //     ch_krakenReport, \
         //     KRAKEN2_TRIMD.out.krona_html, \
-        //     KRAKEN2_TRIMD.out.k2_bh_summary, \
+        //     ch_krakenBestHit, \
         //     RENAME_FASTA_HEADERS.out.renamed_scaffolds, \
         //     BBMAP_REFORMAT.out.filtered_scaffolds, \
         //     DO_MLST.out.checked_MLSTs, \
@@ -414,7 +468,7 @@ workflow arANALYZER {
         // ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS_WF.out.versions) 
 
         // // Combining output based on meta.id to create summary by sample -- is this verbose, ugly and annoying? yes, if anyone has a slicker way to do this we welcome the input.
-        // line_summary_ch = GET_TRIMD_STATS.out.fastp_total_qc.map{meta, fastp_total_qc  -> [[id:meta.id], fastp_total_qc]}\
+        // line_summary_ch = ch_fastp_total_qc.map{meta, fastp_total_qc  -> [[id:meta.id], fastp_total_qc]}\
         // .join(DO_MLST.out.checked_MLSTs.map{                             meta, checked_MLSTs   -> [[id:meta.id], checked_MLSTs]},   by: [0])\
         // .join(GAMMA_HV.out.gamma.map{                                    meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
         // .join(GAMMA_AR.out.gamma.map{                                    meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
@@ -423,7 +477,7 @@ workflow arANALYZER {
         // .join(CALCULATE_ASSEMBLY_RATIO.out.ratio.map{                    meta, ratio           -> [[id:meta.id], ratio]},           by: [0])\
         // .join(GENERATE_PIPELINE_STATS_WF.out.pipeline_stats.map{         meta, pipeline_stats  -> [[id:meta.id], pipeline_stats]},  by: [0])\
         // .join(DETERMINE_TAXA_ID.out.taxonomy.map{                        meta, taxonomy        -> [[id:meta.id], taxonomy]},        by: [0])\
-        // .join(KRAKEN2_TRIMD.out.k2_bh_summary.map{                       meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
+        // .join(ch_krakenBestHit.map{                       meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
         // .join(AMRFINDERPLUS_RUN.out.report.map{                          meta, report          -> [[id:meta.id], report]},          by: [0])\
         // .join(FORMAT_ANI.out.ani_best_hit.map{                           meta, ani_best_hit    -> [[id:meta.id], ani_best_hit]},    by: [0])
 
@@ -480,7 +534,7 @@ workflow arANALYZER {
         // ch_multiqc_files = ch_multiqc_files.mix(FASTP_SINGLES.out.json.collect{it[1]}.ifEmpty([]))
         // ch_multiqc_files = ch_multiqc_files.mix(BBDUK.out.log.collect{it[1]}.ifEmpty([]))
         // ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.report_tsv.collect{it[1]}.ifEmpty([]))
-        // ch_multiqc_files = ch_multiqc_files.mix(KRAKEN2_TRIMD.out.report.collect{it[1]}.ifEmpty([]))
+        // ch_multiqc_files = ch_multiqc_files.mix(ch_krakenReport.collect{it[1]}.ifEmpty([]))
         // ch_multiqc_files = ch_multiqc_files.mix(KRAKEN2_WTASMBLD.out.report.collect{it[1]}.ifEmpty([]))
 
         // MULTIQC (
