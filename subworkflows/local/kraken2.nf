@@ -41,8 +41,8 @@ workflow KRAKEN2_WF {
     ch_versions = ch_versions.mix(KRAKEN_BEST_HIT.out.versions)
     ch_k2_besthit = KRAKEN_BEST_HIT.out.ksummary
 
-    // emit:
-    report        = ch_report
-    k2_besthit    = ch_k2_besthit
-    versions      = ch_versions // channel: [ versions.yml ]
+    emit:
+    report          = ch_report
+    k2_bh_summary   = ch_k2_besthit
+    versions        = ch_versions // channel: [ versions.yml ]
 }
