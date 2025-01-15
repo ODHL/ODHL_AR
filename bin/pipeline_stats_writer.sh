@@ -485,7 +485,7 @@ if [[ "${run_type}" == "all" ]]; then
 		else
 			printf "%-30s: %-8s : %s\\n" "KRAKEN2_READS_CONTAM" "WARNING" "No genera have been found above the ${kraken2_contamination_threshold}% threshold"  >> "${sample_name}.synopsis"
 			if [[ "${status}" = "SUCCESS" ]] || [[ "${status}" = "ALERT" ]]; then
-				status="WARNING"
+				status="FAILED"
 			fi
 		fi
 			#echo "Number of species: ${number_of_species}"
@@ -762,7 +762,7 @@ if [[ -s "${kraken2_weighted_report}" ]]; then
 	else
 		printf "%-30s: %-8s : %s\\n" "KRAKEN2_WEIGHTED_CONTAM" "WARNING" "No genera have been found above the ${kraken2_contamination_threshold}% threshold"  >> "${sample_name}.synopsis"
 		if [[ "${status}" = "SUCCESS" ]] || [[ "${status}" = "ALERT" ]]; then
-			status="WARNING"
+			status="FAILED"
 		fi
 	fi
 fi

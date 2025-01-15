@@ -51,6 +51,7 @@ workflow NFCORE_ODHLAR {
         ch_manifest=CREATE_INPUT_CHANNEL.out.reads
 
         // Download test data
+        //todo needsDownload
         BASESPACE(ch_manifest)
         ch_reads = BASESPACE.out.reads
         
@@ -66,9 +67,6 @@ workflow NFCORE_ODHLAR {
             ch_reads,
             ch_versions
         )
-            // all
-            // the
-            // things
 
         // RUN POST
 
@@ -76,6 +74,62 @@ workflow NFCORE_ODHLAR {
 
             // RUN NCBI UPLOAD
 }
+
+// //
+// // WORKFLOW: Perform Phylo Analysis for Outbreaks
+// //
+// workflow TREE {
+//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
+
+//     main:
+//         BUILD_TREE ( ch_input )
+
+//     emit:
+//         valid_samplesheet            = BUILD_TREE.out.valid_samplesheet
+//         // bams                         = BUILD_TREE.out.bams
+//         // distmatrix                   = BUILD_TREE.out.distmatrix
+//         // core_stats  = BUILD_TREE.out.core_stats
+//         // tree        = BUILD_TREE.out.tree
+//         // samestr_db  = BUILD_TREE.out.samestr_db
+// }
+
+// //
+// // WORKFLOW: Create report
+// //
+// workflow OUTBREAK {
+//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
+
+//     main:
+//         CREATE_REPORT( ch_input, "outbreak" )
+
+//     emit:
+//         report_outbreak            = CREATE_REPORT.out.report_out
+
+// }
+
+// workflow BASIC {
+//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
+
+//     main:
+//         CREATE_REPORT( ch_input, "basic" )
+
+//     emit:
+//         report_basic            = CREATE_REPORT.out.report_out
+
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW

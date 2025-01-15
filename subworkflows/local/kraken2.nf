@@ -16,9 +16,29 @@ workflow KRAKEN2_WF {
     main:
     ch_versions     = Channel.empty() // Used to collect the software versions
 
-    // add in fairy to confirm reads are uncorrupted and correct
-    fasta_ch = fasta.join(fairy_check.splitCsv(strip:true, by:5).map{meta, fairy_outcome -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0]]]}, by: [0,0])\
-        .combine(kraken2_db_path)
+    // prep input
+    if (type=="trimd") {
+        // add in fairy to confirm reads are uncorrupted and correct
+        fasta_ch = fasta.join(fairy_check.splitCsv(strip:true, by:5)\
+            .map{meta, fairy_outcome -> [meta, [fairy_outcome[0][0], fairy_outcome[1][0], fairy_outcome[2][0]]]}, by: [0,0])\
+            .combine(kraken2_db_path)
+    } else if(type=="asmbld" || type=="wtasmbld") {
+        merge_ch=fairy_check.combine(kraken2_db_path)
+
+        fasta_ch = merge_ch.map { entry ->
+            // Extract existing fields
+            def meta = entry[0]
+            def path = entry[1]
+            def outcome = entry[2]
+            def kraken_db_path = entry[3]
+
+            // Add or update the `single_end` metadata
+            meta.single_end = true
+
+            // Return the updated structure
+            [meta, path, outcome, kraken_db_path]
+        }
+    }
 
     // Checking for Contamination in trimmed reads
     KRAKEN2_KRAKEN2 (

@@ -1,4 +1,4 @@
-process CREATE_SUMMARY_LINE_FAILURE {
+process PHOENIX_SUMMARY_LINE_FAILURE {
     tag "${meta.id}"
     label 'process_single'
     // base_v2.1.0 - MUST manually change below (line 30)!!!

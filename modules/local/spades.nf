@@ -11,12 +11,12 @@ process SPADES {
     path(fastp_total_qc), path(kraken2_trimd_report)
 
     output:
-    tuple val(meta), path('*/*.contigs.fa.gz')              ,                emit: contigs // minimum to complete sucessfully
-    tuple val(meta), path('*.log')                          ,                emit: log
-    tuple val(meta), path("*_spades_outcome.csv")           ,                emit: spades_outcome
-    tuple val(meta), path('*/*.scaffolds.fa.gz')            , optional:true, emit: scaffolds // possible that contigs could be created, but not scaffolds
-    tuple val(meta), path('*/*.assembly.gfa.gz')            , optional:true, emit: gfa
-    path("versions.yml")                                    ,                emit: versions
+    tuple val(meta), path('*.contigs.fa.gz')              ,                emit: contigs // minimum to complete sucessfully
+    tuple val(meta), path('*.log')                        ,                emit: log
+    tuple val(meta), path("*_spades_outcome.csv")         ,                emit: spades_outcome
+    tuple val(meta), path('*.scaffolds.fa.gz')            , optional:true, emit: scaffolds // possible that contigs could be created, but not scaffolds
+    tuple val(meta), path('*.assembly.gfa.gz')            , optional:true, emit: gfa
+    path("versions.yml")                                  ,                emit: versions
 
     script:
     // define variables

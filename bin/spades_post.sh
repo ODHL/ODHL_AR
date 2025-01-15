@@ -56,7 +56,7 @@ fi
 spades_complete=run_completed
 echo \$spades_complete | tr -d "\\n" > "${prefix}_spades_outcome.csv"
 
-if [ -f scaffolds.fasta ]; then
+if [ -f spades/scaffolds.fasta ]; then
     mv spades/scaffolds.fasta "${prefix}.scaffolds.fa"
     gzip -n "${prefix}.scaffolds.fa"
     spades_complete=scaffolds_created
@@ -65,7 +65,7 @@ else
 fi
 echo ,$spades_complete | tr -d "\n" >> "${prefix}_spades_outcome.csv"
 
-if [ -f contigs.fasta ]; then
+if [ -f spades/contigs.fasta ]; then
     mv spades/contigs.fasta "${prefix}.contigs.fa"
     gzip -n "${prefix}.contigs.fa"
     spades_complete=contigs_created
@@ -74,7 +74,7 @@ else
 fi
 echo ,$spades_complete | tr -d "\n" >> "${prefix}_spades_outcome.csv"
 
-if [ -f assembly_graph_with_scaffolds.gfa ]; then
+if [ -f spades/assembly_graph_with_scaffolds.gfa ]; then
     mv spades/assembly_graph_with_scaffolds.gfa "${prefix}.assembly.gfa"
     gzip -n "${prefix}.assembly.gfa"
 fi

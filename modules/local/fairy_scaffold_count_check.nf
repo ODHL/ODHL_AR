@@ -15,7 +15,7 @@ process SCAFFOLD_COUNT_CHECK {
     path(names_file)
 
     output:
-    tuple val(meta), path('*_summary_complete.txt'),            emit: outcome
+    tuple val(meta), path('*_scaffold_complete.txt'),            emit: outcome
     path('*_summaryline.tsv'),                                  optional:true, emit: summary_line
     tuple val(meta), path('*.synopsis'),                        optional:true, emit: synopsis
     path("versions.yml"),                                       emit: versions
@@ -23,14 +23,12 @@ process SCAFFOLD_COUNT_CHECK {
     script:
     // define variables
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def fairy_read_count_outcome_file = fairy_read_count_outcome ? "$fairy_read_count_outcome" : ""
     def raw_qc = raw_qc_file ? "-a $raw_qc_file" : ""
     def fastp_total_qc_pipeline_stats = fastp_total_qc_file ? "-b $fastp_total_qc_file" : ""
     def fastp_total_qc_summaryline = fastp_total_qc_file ? "-t $fastp_total_qc_file" : ""
     def kraken2_trimd_summary_pipeline_stats = kraken2_trimd_summary ? "-f $kraken2_trimd_summary" : ""
     def kraken2_trimd_summary_summaryline = kraken2_trimd_summary ? "-k $kraken2_trimd_summary" : ""
     def kraken2_trimd_report = kraken2_trimd_report_file ? "-e $kraken2_trimd_report_file" : ""
-    def krona_trimd = krona_trimd_file ? "-g $krona_trimd_file" : ""
     def container_version = "base_v2.1.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     def script_id = "determine_taxID.sh"
@@ -39,28 +37,17 @@ process SCAFFOLD_COUNT_CHECK {
     def script_edit = "edit_line_summary.py"
     """
     # set new final script name
-    complete_summary="${prefix}_summary_complete.txt"
+    complete_summary="${prefix}_scaffold_complete.txt"
     
-    # handle -entry SCAFFOLDS
-    scaffold_entry_file() {
-        cat <<<EOT >> \${complete_summary}
-        PASSED: Using Scaffold entry no corruption check run on R1.
-        PASSED: Using Scaffold entry no corruption check run on R2.
-        PASSED: Using Scaffold entry no paired reads to check.
-        PASSED: Using Scaffold entry no trimd reads to check.
-        FAILED: No scaffolds in ${prefix} after filtering!
-        EOT
-    }
-
     # checking that the output contains scaffolds still:
     if grep "Output:                 	0 reads (0.00%) 	0 bases (0.00%)" ${bbmap_log}; then
+        echo "HERE"
         #Check if the file exists already (it won't with -entry SCAFFOLDS)
         if [ -f ${fairy_read_count_outcome} ]; then
             # replace end of line with actual error message
             cp ${fairy_read_count_outcome} \${complete_summary}
             sed -i 's/End_of_File/FAILED: No scaffolds in ${prefix} after filtering!/' \${complete_summary}
         else
-            scaffold_entry_file
             echo "FAILED: No scaffolds in ${prefix} after filtering!" >> \${complete_summary}
         fi
 
@@ -92,15 +79,7 @@ process SCAFFOLD_COUNT_CHECK {
 
     # if there are scaffolds left after filtering do the following...
     else
-        #Check if the file exists already (it won't with -entry SCAFFOLDS)
-        if [ -f ${fairy_read_count_outcome} ]; then
-            #replace end of line with actual error message
-            cp ${fairy_read_count_outcome} \${complete_summary}
-            sed -i 's/End_of_File/PASSED: More than 0 scaffolds in ${prefix} after filtering./' \${complete_summary}
-        else
-            scaffold_entry_file
-            echo "PASSED: More than 0 scaffolds in ${prefix} after filtering." >> \${complete_summary}
-        fi
+        echo "PASSED: More than 0 scaffolds in ${prefix} after filtering." > \${complete_summary}
     fi
 
     #gettings script versions
