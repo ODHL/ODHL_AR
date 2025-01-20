@@ -30,11 +30,37 @@ include { BASESPACE                 } from './modules/local/basespace'
     NAMED WORKFLOWS FOR PIPELINE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+//
+//WORKFLOW: Only downloads samples
+//
+workflow arBASESPACE {
+
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
+
+    main:
+        // set download variable
+        needsDownload="TRUE"
+
+        // read input
+        CREATE_INPUT_CHANNEL(
+            samplesheet,
+            needsDownload
+        )
+        ch_manifest=CREATE_INPUT_CHANNEL.out.reads
+
+        // Download test data
+        //todo needsDownload
+        BASESPACE(ch_manifest)
+        ch_reads = BASESPACE.out.reads
+}
 
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ODHLAR {
+workflow arANALYSIS {
 
     // set test samplesheet
     samplesheet = file(params.input)
@@ -74,9 +100,62 @@ workflow NFCORE_ODHLAR {
         ch_quality_results = arANALYZER.out.quality_results
         ch_versions = arANALYZER.out.versions
 
+        // Submit to WGS DB, Prepare for NCBI DB
+        dbSUBMISSION(
+            ch_pipe_results,
+            ch_quality_results,
+            ch_versions
+        )
+}
+
+//
+// WORKFLOW: Run main analysis pipeline depending on type of input
+//
+workflow NFCORE_ODHLAR {
+
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
+
+    main:
+        // TODO rewrite so this takes the WF BASESPACE and hten arANALYSIS to 
+        // avoid redundant code
+        // set download variable
+        needsDownload="TRUE"
+
+        // read input
+        CREATE_INPUT_CHANNEL(
+            samplesheet,
+            needsDownload
+        )
+        ch_manifest=CREATE_INPUT_CHANNEL.out.reads
+
+        // Download test data
+        //todo needsDownload
+        BASESPACE(ch_manifest)
+        ch_reads = BASESPACE.out.reads
+        
+        // cleanup project name from the sampleID
+        // ch_cleaned = ch_reads.map { tuple -> 
+        //         def newId = tuple[0].id.split('-')[0]
+        //         [[id: newId], [tuple[1]]]
+        // }
+        // ch_cleaned.view()
+
+        // RUN PHOENIX
+        arANALYZER(
+            ch_reads,
+            labResults,
+            ch_versions
+        )
+        ch_pipe_results = arANALYZER.out.pipe_results
+        ch_quality_results = arANALYZER.out.quality_results
+        ch_versions = arANALYZER.out.versions
+
         // filter quality samples
         ch_quality_results.view()
-        
+
         // Submit to WGS DB, Prepare for NCBI DB
         dbSUBMISSION(
             ch_pipe_results,
@@ -84,117 +163,92 @@ workflow NFCORE_ODHLAR {
             ch_versions
         )
 
-        // // arReporting
-        // arREPORTING(
+        //TODO fix this so it runs
+    //     PIPELINE_COMPLETION (
+    //         params.email,
+    //         params.email_on_fail,
+    //         params.plaintext_email,
+    //         params.outdir,
+    //         params.monochrome_logs,
+    //         params.hook_url,
+    //         NFCORE_ODHLAR.out.multiqc_report
+    //     )
+    }
 
-        // )
 
-        // // outbreakPrep
-        // outbreakANALYZER(
 
-        // )
+//
+// WORKFLOW: Run main analysis pipeline depending on type of input
+//
+workflow DBProcessing {
 
-        // // outbreakReporting
-        // outbreakREPORTING(
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
 
-        // )
+    main:
+        // set download variable
+        needsDownload="TRUE"
 }
 
-// //
-// // WORKFLOW: Perform Phylo Analysis for Outbreaks
-// //
-// workflow TREE {
-//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
+//
+// WORKFLOW: Run main analysis pipeline depending on type of input
+//
+workflow outbreakANALYSIS {
 
-//     main:
-//         BUILD_TREE ( ch_input )
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
 
-//     emit:
-//         valid_samplesheet            = BUILD_TREE.out.valid_samplesheet
-//         // bams                         = BUILD_TREE.out.bams
-//         // distmatrix                   = BUILD_TREE.out.distmatrix
-//         // core_stats  = BUILD_TREE.out.core_stats
-//         // tree        = BUILD_TREE.out.tree
-//         // samestr_db  = BUILD_TREE.out.samestr_db
-// }
+    main:
+        // set download variable
+        needsDownload="TRUE"
+    
+    //     emit:
+    //         valid_samplesheet            = BUILD_TREE.out.valid_samplesheet
+    //         // bams                         = BUILD_TREE.out.bams
+    //         // distmatrix                   = BUILD_TREE.out.distmatrix
+    //         // core_stats  = BUILD_TREE.out.core_stats
+    //         // tree        = BUILD_TREE.out.tree
+    //         // samestr_db  = BUILD_TREE.out.samestr_db
+}
 
-// //
-// // WORKFLOW: Create report
-// //
-// workflow OUTBREAK {
-//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
+//
+// WORKFLOW: Run main analysis pipeline depending on type of input
+//
+workflow outbreakREPORTING {
 
-//     main:
-//         CREATE_REPORT( ch_input, "outbreak" )
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
 
-//     emit:
-//         report_outbreak            = CREATE_REPORT.out.report_out
-
-// }
-
-// workflow BASIC {
-//     if (params.input) { ch_input = file(params.input) } else { exit 1, 'For -entry PHOENIX: Input samplesheet not specified!' }
-
-//     main:
-//         CREATE_REPORT( ch_input, "basic" )
-
-//     emit:
+    main:
+        // set download variable
+        needsDownload="TRUE"
+    
+    //     emit:
 //         report_basic            = CREATE_REPORT.out.report_out
 
-// }
+}
 
+workflow NFCORE_OUTBREAK {
 
+    // set test samplesheet
+    samplesheet = file(params.input)
+    labResults  = file(params.labResults)
+    ch_versions = Channel.empty()
 
+    main:
+        // TODO 
+        needsDownload="TRUE"
+        // outbreakANALYSIS()
 
+        //outbreakREPORTING
+}
 
-
-
-
-
-
-
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// workflow {
-
-//     main:
-//     //
-//     // SUBWORKFLOW: Run initialisation tasks
-//     //
-//     PIPELINE_INITIALISATION (
-//         params.version,
-//         params.validate_params,
-//         params.monochrome_logs,
-//         args,
-//         params.outdir,
-//         params.input
-//     )
-
-//     //
-//     // WORKFLOW: Run main workflow
-//     //
-//     NFCORE_ODHLAR (
-//         PIPELINE_INITIALISATION.out.samplesheet
-//     )
-//     //
-//     // SUBWORKFLOW: Run completion tasks
-//     //
-//     PIPELINE_COMPLETION (
-//         params.email,
-//         params.email_on_fail,
-//         params.plaintext_email,
-//         params.outdir,
-//         params.monochrome_logs,
-//         params.hook_url,
-//         NFCORE_ODHLAR.out.multiqc_report
-//     )
-// }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
