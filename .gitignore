@@ -1,9 +1,15 @@
+# ignore nf files
 .nextflow*
 work/
 data/
 results/
 .DS_Store
-testing/
-testing*
+
+# temp, error files
 *.pyc
 null/
+
+# database files
+assets/databases/*/*master*
+assets/databases/*/*backup*
+assets/databases/*/cached/*
