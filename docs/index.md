@@ -63,53 +63,6 @@ The **ODHL_rAcecaR pipeline** consists of the following stages:
 
 ---
 
-## **Pipeline Execution**
-The **ODHL_rAcecaR pipeline** is implemented using **Nextflow**, which allows for execution on **local machines, HPC clusters, or cloud environments**.
-
-### **1. Install Nextflow**
-```bash
-curl -s https://get.nextflow.io | bash
-mv nextflow ~/bin/
-```
-
-### **2. Clone the Repository**
-```bash
-git clone https://github.com/ODHL/ODHL_rAcecaR.git
-cd ODHL_rAcecaR
-```
-
-### **3. Configure the Pipeline**
-Modify the **Nextflow configuration file (`nextflow.config`)** to specify reference databases and execution profiles.
-
-Example modification:
-```groovy
-params {
-    kraken2_db = "/home/ubuntu/refs/k2/k2_standard_08gb_202412.tar.gz"
-    amrfinder_db = "/home/ubuntu/refs/amrfinderplus/latest"
-    plasmidfinder_db = "/home/ubuntu/refs/plasmidfinder/latest"
-}
-```
-
-### **4. Run the Pipeline**
-To execute with Docker:
-```bash
-nextflow run main.nf -profile docker
-```
-To execute with Singularity:
-```bash
-nextflow run main.nf -profile singularity
-```
-To execute with the provided wrapper:
-```bash
-bash run_workflow.sh \
-  -p <pipelineRunmode> \ #REQUIRED: all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport
-  -i <projectID> \ #REQUIRED: test
-  -r <resumeRun> \ #OPTIONAL: Y,N (default Y)
-  -o <outbreakReportFlag> #OPTIONAL: basic, advanced
-  -n <nextflowParams> #OPTIONAL: nextflow configs (default -profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4)
-```
----
-
 ## **Input Requirements**
 The **ODHL_rAcecaR** pipeline processes **paired-end or single-end Illumina sequencing reads** in **FASTQ format**. A **sample sheet (CSV/TSV)** should be provided with metadata for each sample with other input. View the  [`Getting Started page`](https://odhl.github.io/odhl_ar/user-guide/getting-started/) and [`Preparing Files page`](https://odhl.github.io/odhl_ar/user-guide/preparing-files/) for more information.for more information.
 
