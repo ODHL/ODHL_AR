@@ -1,5 +1,7 @@
 #!/bin/bash
-
+# Author: S Chill
+# Date: 1/20/2025
+# bash run_workflow.sh -p all -i test
 
 #############################################################################################
 # Background documentation
@@ -10,7 +12,6 @@
 #Docker location
 # https://hub.docker.com/u/staphb
 
-
 #############################################################################################
 # functions
 #############################################################################################
@@ -18,28 +19,32 @@
 helpFunction()
 {
    echo ""
-   echo "Usage: $1 -p [REQUIRED] pipeline runmode"
-   echo -e "\t-p options: phase1, phase2, init, analysis, wgs, ncbi_upload, ncbi_download, report, cleanup"
-   echo "Usage: $2 -n [REQUIRED] project_id"
-   echo -e "\t-n project id"
-   echo "Usage: $4 -r [OPTIONAL] resume_run"
-   echo -e "\t-r Y,N option to resume a partial run settings (default N)"
-
+   echo "Usage: $1 -p [REQUIRED] pipelineRunmode"
+   echo -e "\t-p options: all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport"
+   echo "Usage: $2 -i [REQUIRED] project_id"
+   echo -e "\t-i project id"
+   echo "Usage: $3 -r [OPTIONAL] resume_run"
+   echo -e "\t-r Y,N option to resume a partial run settings (default Y)"
+   echo "Usage: $4 -o [OPTIONAL] outbreakReport"
+   echo -e "\t-o basic, advanced"
+   echo "Usage: $5 -n [OPTIONAL] nextflowParams"
+   echo -e "\t-n any nextflow configs (default -profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4)"
    exit 1 # Exit script after printing help
 }
-
-while getopts "p:n:s:r:t:m:o:" opt
+while getopts "p:i:r:o:n:" opt
 do
    case "$opt" in
-        p ) pipeline="$OPTARG" ;;
-        n ) project_id="$OPTARG" ;;
-       	r ) resume="$OPTARG" ;;
-        ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+      p ) pipelineRunmode="$OPTARG" ;;
+      i ) project_id="$OPTARG" ;;
+      r ) resume="$OPTARG" ;;
+      o ) outbreakReport="$OPTARG" ;;
+      n ) nextflowParams="$OPTARG" ;;
+      ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
    esac
 done
 
 # Print helpFunction in case parameters are empty
-if [ -z "$pipeline" ] || [ -z "$project_id" ]; then
+if [ -z "$pipelineRunmode" ] || [ -z "$project_id" ]; then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
@@ -54,25 +59,26 @@ project_name_full=$(echo $project_id | sed 's:/*$::')
 project_name=$(echo $project_id | cut -f1 -d "_" | cut -f1 -d " ")
 
 # set date
-proj_date=`echo 20$project_name | sed 's/OH-[A-Z]*[0-9]*-//' | sed "s/_SARS//g"`
 today_date=$(date '+%Y-%m-%d'); today_date=`echo $today_date | sed "s/-//g"`
 
+# set optional nextflow ARGS
+if [ -z "$nextflowParams" ]; then 
+   nextflowParams="-profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4"
+fi
 
+#set defaults for optional resume
+if [ ! -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
+
+# set output dir, tmp dir
 outDir="/home/ubuntu/output/$project_name"
 if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 
-#set defaults for optional resume
-if [ -z "$resume" ]; then resume="N"; fi
 
-if [[ $pipeline == "run" ]]; then
-    nextflow run \
-        /home/ubuntu/workflows/ODHL_AR/main.nf \
-         -resume \
-        -profile docker,test \
-        -entry NFCORE_ODHLAR \
-        --max_memory 7.GB \
-        --max_cpus 4 \
-        --outdir $outDir \
-        --projectID $project_name \
-        -work-dir $outDir/tmp
+if [[ $pipelineRunmode == "all" ]]; then
+   nextflow run \
+      main.nf \
+      $optionalArgs \
+      --outdir $outDir \
+      --projectID $project_name \
+      -work-dir $outDir/tmp
 fi
