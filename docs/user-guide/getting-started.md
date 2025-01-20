@@ -101,6 +101,9 @@ The pipeline requires the following tools:
 - MultiQC 1.21
 ```
 
+### Reference Databases
+#### Kraken2 DB
+The database file can be taken from [`Ben Langmead's repository`](https://benlangmead.github.io/aws-indexes/k2) which links directly to the database file. It is recommended to use the latest version of the [`8GB database`](https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20240904.tar.gz), and reformat it using the `bin/reformat_kraken.sh` script.
 
 ## **Pipeline Execution**
 The **ODHL_rAcecaR pipeline** is implemented using **Nextflow**, which allows for execution on **local machines, HPC clusters, or cloud environments**.
@@ -128,26 +131,6 @@ params {
     plasmidfinder_db = "/home/ubuntu/refs/plasmidfinder/latest"
 }
 ```
-
-### **4. Run the Pipeline**
-To execute with Docker:
-```bash
-nextflow run main.nf -profile docker
-```
-To execute with Singularity:
-```bash
-nextflow run main.nf -profile singularity
-```
-To execute with the provided wrapper:
-```bash
-bash run_workflow.sh \
-  -p <pipelineRunmode> \ #REQUIRED: all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport
-  -i <projectID> \ #REQUIRED: test
-  -r <resumeRun> \ #OPTIONAL: Y,N (default Y)
-  -o <outbreakReportFlag> #OPTIONAL: basic, advanced
-  -n <nextflowParams> #OPTIONAL: nextflow configs (default -profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4)
-```
-
 ---
 
 ## **Reproducibility**
