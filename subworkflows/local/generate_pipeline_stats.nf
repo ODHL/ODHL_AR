@@ -73,12 +73,12 @@ workflow GENERATE_PIPELINE_STATS_WF {
             .join(assembly_ratio.map{             meta, assembly_ratio         -> [[id:meta.id],assembly_ratio]},         by: [0])\
             .join(amr_point_mutations.map{        meta, amr_point_mutations    -> [[id:meta.id],amr_point_mutations]},    by: [0])\
             .join(gc_content.map{                 meta, gc_content             -> [[id:meta.id],gc_content]},             by: [0])
-
+        // pipeline_stats_ch.view()
         GENERATE_PIPELINE_STATS (
-            pipeline_stats_ch, params.coverage
+            pipeline_stats_ch, 
+            params.coverage
         )
         ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS.out.versions)
-
         pipeline_stats = GENERATE_PIPELINE_STATS.out.pipeline_stats
 
     emit:

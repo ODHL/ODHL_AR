@@ -402,20 +402,6 @@ if [[ "${run_type}" == "all" ]]; then
 		status="FAILED"
 	fi
 
-	#Check Krona output
-	if [[ "${kraken2_pre_success}" = "true" ]]; then
-		if [[ -s "${krona_trimd}" ]]; then
-			#printf "%-30s: %-8s : %s\\n" "krona-kraken2-preasm" "SUCCESS" "Found"
-			:
-		else
-			printf "%-30s: %-8s : %s\\n" "KRONA_READS" "FAILED" "${sample_name}_trimd.html not found"  >> "${sample_name}.synopsis"
-			status="FAILED"
-		fi
-	else
-		printf "%-30s: %-8s : %s\\n" "KRONA_READS" "FAILED" "kraken2 reads did not complete successfully"  >> "${sample_name}.synopsis"
-		status="FAILED"
-	fi
-
 	#Check extraction and unclassified value
 	if [[ -s "${kraken2_trimd_summary}" ]]; then
 		# Extracts many elements of the summary file to report unclassified and species classified reads and percentages
@@ -661,19 +647,6 @@ if [[ -s "${kraken2_weighted_report}" ]]; then
 	kraken2_weighted_success=true
 else
 	printf "%-30s: %-8s : %s\\n" "KRAKEN2_WEIGHTED" "FAILED" "${sample_name}.kraken2_wtasmbld.summary.txt not found"  >> "${sample_name}.synopsis"
-	status="FAILED"
-fi
-
-#Check Krona output of weighted assembly
-if [[ "${kraken2_weighted_success}" = true ]]; then
-	if [[ -s "${krona_weighted}" ]]; then
-    :
-	else
-		printf "%-30s: %-8s : %s\\n" "KRONA_WEIGHTED" "FAILED" "${sample_name}_weighted.html not found"  >> "${sample_name}.synopsis"
-		status="FAILED"
-	fi
-else
-	printf "%-30s: %-8s : %s\\n" "KRONA_WEIGHTED" "FAILED" "kraken2 weighted did not complete successfully"  >> "${sample_name}.synopsis"
 	status="FAILED"
 fi
 

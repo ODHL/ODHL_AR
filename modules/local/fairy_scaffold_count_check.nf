@@ -15,7 +15,7 @@ process SCAFFOLD_COUNT_CHECK {
     path(names_file)
 
     output:
-    tuple val(meta), path('*_scaffold_complete.txt'),            emit: outcome
+    tuple val(meta), path('*_scaffold_complete.txt'),           emit: outcome
     path('*_summaryline.tsv'),                                  optional:true, emit: summary_line
     tuple val(meta), path('*.synopsis'),                        optional:true, emit: synopsis
     path("versions.yml"),                                       emit: versions
@@ -82,17 +82,11 @@ process SCAFFOLD_COUNT_CHECK {
         echo "PASSED: More than 0 scaffolds in ${prefix} after filtering." > \${complete_summary}
     fi
 
-    #gettings script versions
-    dettaxid_version=\$(${script_id} -V)
-    pipestats_version=\$(${script_writer} -V)
-
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         python: \$(python --version | sed 's/Python //g')
         phoenix_base_container_tag: ${container_version}
         phoenix_base_container: ${container}
-        \${dettaxid_version}
-        \${pipestats_version}
         Phoenix_summary_line.py: \$(${script_summary} --version )
         edit_line_summary.py: \$(${script_edit} --version )
     END_VERSIONS
