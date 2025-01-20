@@ -67,7 +67,7 @@ if [ -z "$nextflowParams" ]; then
 fi
 
 #set defaults for optional resume
-if [ ! -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
+if [ -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
 
 # set output dir, tmp dir
 outDir="/home/ubuntu/output/$project_name"
@@ -75,10 +75,12 @@ if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 
 
 if [[ $pipelineRunmode == "all" ]]; then
-   nextflow run \
+   cmd="nextflow run \
       main.nf \
-      $optionalArgs \
+      $nextflowParams \
       --outdir $outDir \
       --projectID $project_name \
-      -work-dir $outDir/tmp
+      -work-dir $outDir/tmp"
+   echo $cmd
+   $cmd
 fi
