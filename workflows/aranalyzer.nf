@@ -14,6 +14,13 @@
 // Info required for completion email and summary
 def multiqc_report = []
 
+// Groovy funtion to make [ meta.id, [] ] - just an empty channel
+def create_empty_ch(input_for_meta) { // We need meta.id associated with the empty list which is why .ifempty([]) won't work
+    meta_id = input_for_meta[0]
+    output_array = [ meta_id, [] ]
+    return output_array
+}
+
 /*
 ========================================================================================
     CONFIG FILES
@@ -55,6 +62,7 @@ include { DETERMINE_TAXA_ID                 } from '../modules/local/determine_t
 include { GET_TAXA_FOR_AMRFINDER            } from '../modules/local/get_taxa_for_amrfinder'
 include { AMRFINDERPLUS_RUN                 } from '../modules/local/amrfinder'
 include { CALCULATE_ASSEMBLY_RATIO          } from '../modules/local/assembly_ratio'
+include { GENERATE_PIPELINE_STATS           } from '../modules/local/generate_pipeline_stats'
 include { CREATE_PHOENIX_SUMMARY_LINE       } from '../modules/local/create_phoenix_summary_line'
 include { CREATE_PHOENIX_SUMMARY            } from '../modules/local/create_phoenix_summary'
 include { POST_PROCESS                      } from '../modules/local/post_process'
@@ -70,10 +78,6 @@ include { KRAKEN2_WF as KRAKEN2_TRIMD           } from '../subworkflows/local/kr
 include { SPADES_WF                             } from '../subworkflows/local/spades'
 include { KRAKEN2_WF as KRAKEN2_WTASMBLD        } from '../subworkflows/local/kraken2'
 include { DO_MLST                               } from '../subworkflows/local/do_mlst'
-include { GENERATE_PIPELINE_STATS_WF            } from '../subworkflows/local/generate_pipeline_stats'
-
-// include { GENERATE_PIPELINE_STATS_FAILURE_EXQC } from '../../modules/local/generate_pipeline_stats_failure_exqc'
-
 
 /*
 ========================================================================================
@@ -95,6 +99,7 @@ include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 workflow arANALYZER {
     take:
         ch_reads
+        ch_labResults
         ch_versions
 
     main:
@@ -277,12 +282,12 @@ workflow arANALYZER {
         ch_bbmapFiltScaffolds   = BBMAP_REFORMAT.out.filtered_scaffolds
 
         // Combine bbmap log with the fairy outcome file
-        scaffold_check_ch = ch_bbmapLog.map{                     meta, log                -> [[id:meta.id], log]}\
-            .join(ch_trimmd_outcome.map{                         meta, outcome            -> [[id:meta.id], outcome]},    by: [0])\
-            .join(ch_rawStats.map{      meta, combined_raw_stats -> [[id:meta.id], combined_raw_stats]}, by: [0])\
+        scaffold_check_ch = ch_bbmapLog.map{    meta, log                -> [[id:meta.id], log]}\
+            .join(ch_trimmd_outcome.map{        meta, outcome            -> [[id:meta.id], outcome]},    by: [0])\
+            .join(ch_rawStats.map{              meta, combined_raw_stats -> [[id:meta.id], combined_raw_stats]}, by: [0])\
             .join(ch_fastp_total_qc.map{        meta, fastp_total_qc     -> [[id:meta.id], fastp_total_qc]},     by: [0])\
-            .join(ch_krakenReport.map{                  meta, report             -> [[id:meta.id], report]},             by: [0])\
-            .join(ch_krakenBestHit.map{           meta, k2_bh_summary      -> [[id:meta.id], k2_bh_summary]},      by: [0])
+            .join(ch_krakenReport.map{          meta, report             -> [[id:meta.id], report]},             by: [0])\
+            .join(ch_krakenBestHit.map{         meta, k2_bh_summary      -> [[id:meta.id], k2_bh_summary]},      by: [0])
 
         // Checking that there are still scaffolds left after filtering
         SCAFFOLD_COUNT_CHECK (
@@ -295,10 +300,16 @@ workflow arANALYZER {
         ch_scaffoldOutcome = SCAFFOLD_COUNT_CHECK.out.outcome
         ch_scaffoldSummary = SCAFFOLD_COUNT_CHECK.out.summary_line
 
-        //combing scaffolds with scaffold check information to ensure processes that need scaffolds only run when there are scaffolds in the file
-        ch_filtered_scaffolds = ch_bbmapFiltScaffolds.map{    meta, filtered_scaffolds -> [[id:meta.id], filtered_scaffolds]}
-            .join(ch_scaffoldOutcome.splitCsv(strip:true, by:0))
-            .filter { it[2].findAll {it.contains('PASSED: More than 0 scaffolds')}}
+        // Filter: Only continue with samples that have more than 0 scaffolds left in the file
+        ch_filtered_scaffolds = ch_bbmapFiltScaffolds
+            .join(ch_scaffoldOutcome, by: 0)
+            .map { meta, filtered_scaffolds, scaffold_outcome -> 
+                [meta, filtered_scaffolds, scaffold_outcome]
+            }
+            .filter { entry ->
+                def scaffold_file = entry[2]  // Extract the scaffold_complete.txt path
+                scaffold_file.text.readLines().any { it.contains('PASSED: More than 0 scaffolds') }
+            }
 
         // Running gamma to identify hypervirulence genes in scaffolds
         GAMMA_HV (
@@ -431,10 +442,10 @@ workflow arANALYZER {
         ch_amrfinderTaxa = GET_TAXA_FOR_AMRFINDER.out.amrfinder_taxa
 
         // Combining taxa and scaffolds to run amrfinder and get the point mutations.
-        amr_channel = ch_bbmapFiltScaffolds.map{                 meta, reads          -> [[id:meta.id], reads]}\
-            .join(ch_amrfinderTaxa.splitCsv(strip:true).map{meta, amrfinder_taxa -> [[id:meta.id], amrfinder_taxa ]}, by: [0])\
-            .join(ch_prokkaFAA.map{                                                meta, faa            -> [[id:meta.id], faa ]},            by: [0])\
-            .join(ch_prokkaGFF.map{                                                meta, gff            -> [[id:meta.id], gff ]},            by: [0])
+        amr_channel = ch_bbmapFiltScaffolds.map{            meta, reads             -> [[id:meta.id], reads]}\
+            .join(ch_amrfinderTaxa.splitCsv(strip:true).map{meta, amrfinder_taxa    -> [[id:meta.id], amrfinder_taxa ]}, by: [0])\
+            .join(ch_prokkaFAA.map{                         meta, faa               -> [[id:meta.id], faa ]},            by: [0])\
+            .join(ch_prokkaGFF.map{                         meta, gff               -> [[id:meta.id], gff ]},            by: [0])
 
         // Run AMRFinder
         AMRFINDERPLUS_RUN (
@@ -458,67 +469,36 @@ workflow arANALYZER {
         ch_assembledRatio = CALCULATE_ASSEMBLY_RATIO.out.ratio
         ch_assembledGC = CALCULATE_ASSEMBLY_RATIO.out.gc_content
 
-        // // Generate the stats report
-        // fastp_raw_qc           // channel: tuple (meta) path(fastp_raw_qc): ch_rawStats
-        // fastp_total_qc         // channel: tuple (meta) path(fastp_total_qc): ch_fastp_total_qc
-        // fullgene_results       // channel: tuple (meta) path(fullgene_results): empty_channel
-        // trimd_report           // channel: tuple (meta) path(report): ch_krakenReport
-        // trimd_krona_html       // channel: tuple (meta) path(krona_html): empty_channel
-        // trimd_k2_bh_summary    // channel: tuple (meta) path(k2_bh_summary): ch_krakenBestHit
-        // renamed_fastas         // ch_renamedScaffolds
-        // filtered_fastas        // ch_bbmapFiltScaffolds
-        // mlst                   // ch_mlstCheck
-        // gamma_hv               // ch_gammaHV
-        // gamma_ar               // ch_gammaAR
-        // gamma_pf               // ch_gammaPF
-        // quast_report           // ch_quastReport
-        // busco                  // params.run_busco
-        // asmbld_report          // channel: tuple (meta) path(report): empty_channel
-        // asmbld_krona_html      // channel: tuple (meta) path(krona_html): empty_channel
-        // asmbld_k2_bh_summary   // channel: tuple (meta) path(k2_bh_summary): empty_channel
-        // wtasmbld_report        // channel: tuple (meta) path(report): ch_krakenReport_wtasmbld
-        // wtasmbld_krona_html    // channel: tuple (meta) path(krona_html): empty_channel
-        // wtasmbld_k2_bh_summary // channel: tuple (meta) path(k2_bh_summary): ch_krakenBestHit_wtasmbld
-        // taxa_id                // ch_taxaID
-        // format_ani             // ch_aniBestHit
-        // assembly_ratio         // ch_assembledRatio
-        // amr_point_mutations    // channel: tuple val(meta), path(report): ch_amrfinderMutationReport
-        // gc_content             // ch_assembledGC
-        // extended_qc            // params.extended_qc
-        // TODO setting empty path for now, need to rewrite and remove
-        empty_path="" // [1]kraken2_trimd_report
-        empty_channel=[]
+        // Prepare all the samples for the stats report
+        empty_results = ch_rawStats.map{ it -> create_empty_ch(it) }
+        pipeline_stats_ch = ch_rawStats.map{      meta, ch_rawStats                 -> [[id:meta.id],ch_rawStats]}\
+            .join(ch_fastp_total_qc.map{          meta, ch_fastp_total_qc           -> [[id:meta.id],ch_fastp_total_qc]},           by: [0])\
+            .join(ch_krakenReport.map{            meta, ch_krakenReport             -> [[id:meta.id],ch_krakenReport]},             by: [0])\
+            .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
+            .join(ch_krakenBestHit.map{           meta, ch_krakenBestHit            -> [[id:meta.id],ch_krakenBestHit]},            by: [0])\
+            .join(ch_renamedScaffolds.map{        meta, ch_renamedScaffolds         -> [[id:meta.id],ch_renamedScaffolds]},         by: [0])\
+            .join(ch_bbmapFiltScaffolds.map{      meta, ch_bbmapFiltScaffolds       -> [[id:meta.id],ch_bbmapFiltScaffolds]},       by: [0])\
+            .join(ch_mlstCheck.map{               meta, ch_mlstCheck                -> [[id:meta.id],ch_mlstCheck]},                by: [0])\
+            .join(ch_gammaHV.map{                 meta, ch_gammaHV                  -> [[id:meta.id],ch_gammaHV]},                  by: [0])\
+            .join(ch_gammaAR.map{                 meta, ch_gammaAR                  -> [[id:meta.id],ch_gammaAR]},                  by: [0])\
+            .join(ch_gammaPF.map{                 meta, ch_gammaPF                  -> [[id:meta.id],ch_gammaPF]},                  by: [0])\
+            .join(ch_quastReport.map{             meta, ch_quastReport              -> [[id:meta.id],ch_quastReport]},              by: [0])\
+            .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
+            .join(ch_krakenReport_wtasmbld.map{   meta, ch_krakenReport_wtasmbld    -> [[id:meta.id],ch_krakenReport_wtasmbld]},    by: [0])\
+            .join(ch_krakenBestHit_wtasmbld.map{  meta, ch_krakenBestHit_wtasmbld   -> [[id:meta.id],ch_krakenBestHit_wtasmbld]},   by: [0])\
+            .join(ch_taxaID.map{                  meta, ch_taxaID                   -> [[id:meta.id],ch_taxaID]},                   by: [0])\
+            .join(ch_aniBestHit.map{              meta, ch_aniBestHit               -> [[id:meta.id],ch_aniBestHit]},               by: [0])\
+            .join(ch_assembledRatio.map{          meta, ch_assembledRatio           -> [[id:meta.id],ch_assembledRatio]},           by: [0])\
+            .join(ch_amrfinderMutationReport.map{ meta, ch_amrfinderMutationReport  -> [[id:meta.id],ch_amrfinderMutationReport]},  by: [0])\
+            .join(ch_assembledGC.map{             meta, ch_assembledGC              -> [[id:meta.id],ch_assembledGC]},              by: [0])
 
-        GENERATE_PIPELINE_STATS_WF (
-            ch_rawStats, 
-            ch_fastp_total_qc,
-            empty_channel, 
-            ch_krakenReport, 
-            empty_channel, 
-            ch_krakenBestHit, 
-            ch_renamedScaffolds, 
-            ch_bbmapFiltScaffolds, 
-            ch_mlstCheck, 
-            ch_gammaHV, 
-            ch_gammaAR, 
-            ch_gammaPF, 
-            ch_quastReport, 
-            params.run_busco,
-            empty_channel,
-            empty_channel,
-            empty_channel,
-            ch_krakenReport_wtasmbld,
-            empty_channel,
-            ch_krakenBestHit_wtasmbld, 
-            ch_taxaID, 
-            ch_aniBestHit, 
-            ch_assembledRatio, 
-            ch_amrfinderMutationReport, 
-            ch_assembledGC,
-            params.extended_qc
+        // Generate the stats report
+        GENERATE_PIPELINE_STATS (
+            pipeline_stats_ch, 
+            params.coverage
         )
-        ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS_WF.out.versions)
-        ch_pipeStats = GENERATE_PIPELINE_STATS_WF.out.pipeline_stats
+        ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS.out.versions)
+        ch_pipeStats = GENERATE_PIPELINE_STATS.out.pipeline_stats
 
         // Combining output based on meta.id to create summary by sample -- is this verbose, ugly and annoying? yes, if anyone has a slicker way to do this we welcome the input.
         line_summary_ch = ch_fastp_total_qc.map{            meta, fastp_total_qc  -> [[id:meta.id], fastp_total_qc]}\
@@ -529,10 +509,10 @@ workflow arANALYZER {
             .join(ch_quastReport.map{                       meta, report_tsv      -> [[id:meta.id], report_tsv]},      by: [0])\
             .join(ch_assembledRatio.map{                    meta, ratio           -> [[id:meta.id], ratio]},           by: [0])\
             .join(ch_pipeStats.map{                         meta, pipeline_stats  -> [[id:meta.id], pipeline_stats]},  by: [0])\
-            .join(ch_taxaID.map{                        meta, taxonomy        -> [[id:meta.id], taxonomy]},        by: [0])\
-            .join(ch_krakenBestHit.map{                       meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
-            .join(ch_amrfinderMutationReport.map{                          meta, report          -> [[id:meta.id], report]},          by: [0])\
-            .join(ch_aniBestHit.map{                           meta, ani_best_hit    -> [[id:meta.id], ani_best_hit]},    by: [0])
+            .join(ch_taxaID.map{                            meta, taxonomy        -> [[id:meta.id], taxonomy]},        by: [0])\
+            .join(ch_krakenBestHit.map{                     meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
+            .join(ch_amrfinderMutationReport.map{           meta, report          -> [[id:meta.id], report]},          by: [0])\
+            .join(ch_aniBestHit.map{                        meta, ani_best_hit    -> [[id:meta.id], ani_best_hit]},    by: [0])
 
         // Generate summary per sample that passed SPAdes
         CREATE_PHOENIX_SUMMARY_LINE (
@@ -550,37 +530,34 @@ workflow arANALYZER {
         ch_versions = ch_versions.mix(CREATE_PHOENIX_SUMMARY.out.versions)
         final_phoenix_summary = CREATE_PHOENIX_SUMMARY.out.summary_report
 
-        // // Post processing
-        // trimmed_read_counts_files_ch = ch_fastp_total_qc.map { entry -> entry[1] }
-        merging_data= ch_fastp_total_qc \
-            .map { entry -> entry[1] }
-            .collect()
-            .join(ch_synopsis \
-            .map { entry -> entry[1] })
-            .collect()
-        merging_data.view()
+        // Post processing
+        //// Gather needed files
+        all_fastp_files = ch_fastp_total_qc.map { it[1] }  // Extract just the file path
+        all_pipeStats_files = ch_pipeStats.map { it[1] }  // Extract just the file path
+        all_files_ch = all_fastp_files.concat(all_pipeStats_files).collect()
 
-        // merging_data.view()
-        // POST_PROCESS(
-        //     merging_data,
-        //     final_phoenix_summary,
-        //     params.core_functions_script
-        // )
+        // Run post processing
+        POST_PROCESS(
+            all_files_ch,
+            final_phoenix_summary,
+            params.core_functions_script,
+            ch_labResults
+        )
+        ch_pipe_results = POST_PROCESS.out.pipeline_results
+        ch_quality_results = POST_PROCESS.out.quality_results
+        ch_versions = ch_versions.mix(POST_PROCESS.out.versions)
 
-        // // Generate wgsDB ID's
-        // WGS_DB(
-        //     params.core_functions_script,
-        //     final_phoenix_summary,
-        //     params.wgs_db
-        // )
     
     emit:
-        scaffolds        = ch_bbmapFiltScaffolds
-        trimmed_reads    = ch_trmdFailed
-        mlst             = ch_mlstCheck
-        amrfinder_output = ch_amrfinderReport
-        gamma_ar         = ch_gammaAR
-        phx_summary      = ch_line_summary
+        scaffolds         = ch_bbmapFiltScaffolds
+        trimmed_reads     = ch_trmdFailed
+        mlst              = ch_mlstCheck
+        amrfinder_output  = ch_amrfinderReport
+        gamma_ar          = ch_gammaAR
+        phx_summary       = ch_line_summary
+        pipe_results      = ch_pipe_results
+        quality_results   = ch_quality_results
+        versions          = ch_versions
 }
 
 /*
@@ -588,15 +565,7 @@ workflow arANALYZER {
     COMPLETION EMAIL AND SUMMARY
 ========================================================================================
 */
-// // Adding if/else for running on ICA
-//     workflow.onComplete {
-//         if (count == 0) {
-//             if (params.email || params.email_on_fail) {
-//                 NfcoreTemplate.email(workflow, params, summary_params, projectDir, log, multiqc_report)
-//             }
-//             NfcoreTemplate.summary(workflow, params, log)
-//             count++
-//         }
+
 /*
 ========================================================================================
     THE END

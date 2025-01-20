@@ -15,7 +15,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // Main workflows
-include { arANALYZER  } from './workflows/aranalyzer'
+include { arANALYZER    } from './workflows/aranalyzer'
+include { dbSUBMISSION  } from './workflows/db_submissions'
 
 // Subworkflows
 include { CREATE_INPUT_CHANNEL    } from './subworkflows/local/create_input_channel'
@@ -37,6 +38,7 @@ workflow NFCORE_ODHLAR {
 
     // set test samplesheet
     samplesheet = file(params.input)
+    labResults  = file(params.labResults)
     ch_versions = Channel.empty()
 
     main:
@@ -65,14 +67,37 @@ workflow NFCORE_ODHLAR {
         // RUN PHOENIX
         arANALYZER(
             ch_reads,
+            labResults,
+            ch_versions
+        )
+        ch_pipe_results = arANALYZER.out.pipe_results
+        ch_quality_results = arANALYZER.out.quality_results
+        ch_versions = arANALYZER.out.versions
+
+        // filter quality samples
+        ch_quality_results.view()
+        
+        // Submit to WGS DB, Prepare for NCBI DB
+        dbSUBMISSION(
+            ch_pipe_results,
+            ch_quality_results,
             ch_versions
         )
 
-        // RUN POST
+        // // arReporting
+        // arREPORTING(
 
-            // RUN WGS
+        // )
 
-            // RUN NCBI UPLOAD
+        // // outbreakPrep
+        // outbreakANALYZER(
+
+        // )
+
+        // // outbreakReporting
+        // outbreakREPORTING(
+
+        // )
 }
 
 // //
