@@ -11,7 +11,7 @@ nextflow run main.nf -profile singularity
 To execute with the provided wrapper:
 ```bash
 bash run_workflow.sh \
-  -p <pipelineRunmode> \ #REQUIRED: all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport
+  -e <entry> \ #REQUIRED: arBASESPACE,arANALYSIS,DBProcessing,outbreakANALYSIS,outbreakREPORTING,NFCORE_OUTBREAK"
   -i <projectID> \ #REQUIRED: test
   -r <resumeRun> \ #OPTIONAL: Y,N (default Y)
   -o <outbreakReportFlag> #OPTIONAL: basic, advanced
