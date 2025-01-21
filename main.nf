@@ -37,22 +37,20 @@ workflow arBASESPACE {
 
     // set test samplesheet
     samplesheet = file(params.input)
-    labResults  = file(params.labResults)
     ch_versions = Channel.empty()
 
     main:
         // set download variable
-        needsDownload="TRUE"
+        runBASESPACE="TRUE"
 
         // read input
         CREATE_INPUT_CHANNEL(
             samplesheet,
-            needsDownload
+            runBASESPACE
         )
         ch_manifest=CREATE_INPUT_CHANNEL.out.reads
 
         // Download test data
-        //todo needsDownload
         BASESPACE(ch_manifest)
         ch_reads = BASESPACE.out.reads
 }
@@ -68,27 +66,24 @@ workflow arANALYSIS {
     ch_versions = Channel.empty()
 
     main:
-        // set download variable
-        needsDownload="TRUE"
+        // set download 
+        runBASESPACE = params.runBASESPACE.toBoolean()
 
-        // read input
+        // Read input
         CREATE_INPUT_CHANNEL(
             samplesheet,
-            needsDownload
+            runBASESPACE
         )
-        ch_manifest=CREATE_INPUT_CHANNEL.out.reads
+        ch_manifest = CREATE_INPUT_CHANNEL.out.reads
 
-        // Download test data
-        //todo needsDownload
-        BASESPACE(ch_manifest)
-        ch_reads = BASESPACE.out.reads
-        
-        // cleanup project name from the sampleID
-        // ch_cleaned = ch_reads.map { tuple -> 
-        //         def newId = tuple[0].id.split('-')[0]
-        //         [[id: newId], [tuple[1]]]
-        // }
-        // ch_cleaned.view()
+        // Conditional execution for download
+        if (runBASESPACE) {
+            // Download test data
+            BASESPACE(ch_manifest)
+            ch_reads = BASESPACE.out.reads
+        } else {
+            ch_reads = ch_manifest
+        }
 
         // RUN PHOENIX
         arANALYZER(
@@ -111,75 +106,6 @@ workflow arANALYSIS {
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ODHLAR {
-
-    // set test samplesheet
-    samplesheet = file(params.input)
-    labResults  = file(params.labResults)
-    ch_versions = Channel.empty()
-
-    main:
-        // TODO rewrite so this takes the WF BASESPACE and hten arANALYSIS to 
-        // avoid redundant code
-        // set download variable
-        needsDownload="TRUE"
-
-        // read input
-        CREATE_INPUT_CHANNEL(
-            samplesheet,
-            needsDownload
-        )
-        ch_manifest=CREATE_INPUT_CHANNEL.out.reads
-
-        // Download test data
-        //todo needsDownload
-        BASESPACE(ch_manifest)
-        ch_reads = BASESPACE.out.reads
-        
-        // cleanup project name from the sampleID
-        // ch_cleaned = ch_reads.map { tuple -> 
-        //         def newId = tuple[0].id.split('-')[0]
-        //         [[id: newId], [tuple[1]]]
-        // }
-        // ch_cleaned.view()
-
-        // RUN PHOENIX
-        arANALYZER(
-            ch_reads,
-            labResults,
-            ch_versions
-        )
-        ch_pipe_results = arANALYZER.out.pipe_results
-        ch_quality_results = arANALYZER.out.quality_results
-        ch_versions = arANALYZER.out.versions
-
-        // filter quality samples
-        ch_quality_results.view()
-
-        // Submit to WGS DB, Prepare for NCBI DB
-        dbSUBMISSION(
-            ch_pipe_results,
-            ch_quality_results,
-            ch_versions
-        )
-
-        //TODO fix this so it runs
-    //     PIPELINE_COMPLETION (
-    //         params.email,
-    //         params.email_on_fail,
-    //         params.plaintext_email,
-    //         params.outdir,
-    //         params.monochrome_logs,
-    //         params.hook_url,
-    //         NFCORE_ODHLAR.out.multiqc_report
-    //     )
-    }
-
-
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
 workflow DBProcessing {
 
     // set test samplesheet
@@ -189,7 +115,7 @@ workflow DBProcessing {
 
     main:
         // set download variable
-        needsDownload="TRUE"
+        runBASESPACE="TRUE"
 }
 
 //
@@ -204,7 +130,7 @@ workflow outbreakANALYSIS {
 
     main:
         // set download variable
-        needsDownload="TRUE"
+        runBASESPACE="TRUE"
     
     //     emit:
     //         valid_samplesheet            = BUILD_TREE.out.valid_samplesheet
@@ -227,7 +153,7 @@ workflow outbreakREPORTING {
 
     main:
         // set download variable
-        needsDownload="TRUE"
+        runBASESPACE="TRUE"
     
     //     emit:
 //         report_basic            = CREATE_REPORT.out.report_out
@@ -243,7 +169,7 @@ workflow NFCORE_OUTBREAK {
 
     main:
         // TODO 
-        needsDownload="TRUE"
+        runBASESPACE="TRUE"
         // outbreakANALYSIS()
 
         //outbreakREPORTING
