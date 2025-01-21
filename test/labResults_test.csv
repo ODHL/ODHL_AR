@@ -1,4 +1,5 @@
 sample,results
-24AR004033-OH-VH00648-241004,Providencia
-24AR005293-OH-VH01632-241210,Acinetobacter
-24AR005295-OH-VH01632-241210,Klebsiella
+sample1,Providencia
+sample2,Acinetobacter
+sample3,Klebsiella
+sample4,Pseudomonas
