@@ -19,8 +19,8 @@
 helpFunction()
 {
    echo ""
-   echo "Usage: $1 -p [REQUIRED] pipelineRunmode"
-   echo -e "\t-p options: all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport"
+   echo "Usage: $1 -e [REQUIRED] entry"
+   echo -e "\t-e options: arBASESPACE,arANALYSIS,DBProcessing,outbreakANALYSIS,outbreakREPORTING,NFCORE_OUTBREAK"
    echo "Usage: $2 -i [REQUIRED] project_id"
    echo -e "\t-i project id"
    echo "Usage: $3 -r [OPTIONAL] resume_run"
@@ -28,13 +28,13 @@ helpFunction()
    echo "Usage: $4 -o [OPTIONAL] outbreakReport"
    echo -e "\t-o basic, advanced"
    echo "Usage: $5 -n [OPTIONAL] nextflowParams"
-   echo -e "\t-n any nextflow configs (default -profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4)"
+   echo -e "\t-n any nextflow configs (default --max_memory 7.GB --max_cpus 4)"
    exit 1 # Exit script after printing help
 }
-while getopts "p:i:r:o:n:" opt
+while getopts "e:i:r:o:n:" opt
 do
    case "$opt" in
-      p ) pipelineRunmode="$OPTARG" ;;
+      e ) entry="$OPTARG" ;;
       i ) project_id="$OPTARG" ;;
       r ) resume="$OPTARG" ;;
       o ) outbreakReport="$OPTARG" ;;
@@ -44,7 +44,7 @@ do
 done
 
 # Print helpFunction in case parameters are empty
-if [ -z "$pipelineRunmode" ] || [ -z "$project_id" ]; then
+if [ -z "$entry" ] || [ -z "$project_id" ]; then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
@@ -63,7 +63,7 @@ today_date=$(date '+%Y-%m-%d'); today_date=`echo $today_date | sed "s/-//g"`
 
 # set optional nextflow ARGS
 if [ -z "$nextflowParams" ]; then 
-   nextflowParams="-profile docker,test -entry NFCORE_ODHLAR --max_memory 7.GB --max_cpus 4"
+   nextflowParams="-profile docker,test --max_memory 7.GB --max_cpus 4"
 fi
 
 #set defaults for optional resume
@@ -73,14 +73,14 @@ if [ -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
 outDir="/home/ubuntu/output/$project_name"
 if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 
-
-if [[ $pipelineRunmode == "all" ]]; then
-   cmd="nextflow run \
-      main.nf \
-      $nextflowParams \
-      --outdir $outDir \
-      --projectID $project_name \
-      -work-dir $outDir/tmp"
-   echo $cmd
-   $cmd
-fi
+# arBASESPACE
+#all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport"
+cmd="nextflow run \
+   main.nf \
+   $nextflowParams \
+   -entry $entry \ 
+   --outdir $outDir \
+   --projectID $project_name \
+   -work-dir $outDir/tmp"
+echo $cmd
+$cmd
