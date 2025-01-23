@@ -25,9 +25,9 @@ for file in "${files[@]}"; do
 	zcat $file | awk -v lines="$lines_to_keep" 'NR <= lines' | gzip > subset_$file
 
 	if [[ "$file" == *_R1_001.fastq.gz ]]; then
-        	mv "subset_$file" "sample${counter}.R1.fastq.gz"
+        	mv "subset_$file" "ODHL_sample${counter}.R1.fastq.gz"
     	elif [[ "$file" == *_R2_001.fastq.gz ]]; then
-        	mv "subset_$file" "sample${counter}.R2.fastq.gz"
+        	mv "subset_$file" "ODHL_sample${counter}.R2.fastq.gz"
         	((counter++)) # Increment counter after processing R2
     	fi
 done
