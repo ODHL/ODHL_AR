@@ -33,9 +33,6 @@ eval $(parse_yaml ${ncbiConfig} "config_")
 ##########################################################
 # Set files, dir
 #########################################################
-# pull the WGS dir 
-wgs_dir=$(dirname "$wgsDB_file")
-
 # prep files
 prep_pass="prep_pass.txt"
 ncbi_upload="ncbi_sample_list.csv"
