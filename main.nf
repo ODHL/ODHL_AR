@@ -91,31 +91,50 @@ workflow arANALYSIS {
             labResults,
             ch_versions
         )
-        ch_pipe_results = arANALYZER.out.pipe_results
+        ch_analyzer_results = arANALYZER.out.pipe_results
         ch_quality_results = arANALYZER.out.quality_results
         ch_versions = arANALYZER.out.versions
 
         // Submit to WGS DB, Prepare for NCBI DB
         dbSUBMISSION(
-            ch_pipe_results,
+            ch_analyzer_results,
             ch_quality_results,
             ch_versions
         )
+        ch_pipelineResults = dbSUBMISSION.out.pipelineResults
+
+    emit:
+        pipelineResults = ch_pipelineResults
+        quality_results = ch_quality_results
 }
 
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow DBProcessing {
-
-    // set test samplesheet
-    samplesheet = file(params.input)
-    labResults  = file(params.labResults)
-    ch_versions = Channel.empty()
+workflow arPOST {
+    // set variables
+    project_id          = params.projectID
+    ch_pipelineResults  = arANALYSIS.out.pipelineResults
+    ch_quality_results  = arANALYSIS.out.quality_results
+    ch_wgs_db           = Channel.fromPath(params.wgs_db)
+    ch_ncbi_db          = Channel.fromPath(params.ncbi_db)
 
     main:
-        // set download variable
-        runBASESPACE="TRUE"
+        dbPOST(
+            project_id,
+            ch_ncbi_db,
+            ch_wgs_db,
+            ch_quality_results
+        )
+        ch_ncbi_output = dbPOST.out.ncbi_output
+
+        arREPORT(
+            ch_pipelineResults,
+            ch_ncbi_output
+        )
+
+    emit:
+        ncbi_output = ch_ncbi_output
 }
 
 //
