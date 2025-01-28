@@ -129,6 +129,20 @@ params {
     plasmidfinder_db = "/home/ubuntu/refs/plasmidfinder/latest"
 }
 ```
+
+### *** 4. (Optional) Install Basespace**
+The pipeline allows for automatic download from basespace. If you choose to use this feature, you'll need to add basespace to your $PATH.
+```bash
+# Install basespace
+## Docs
+## https://developer.basespace.illumina.com/docs/content/documentation/cli/cli-overview
+if [[ ! -d $HOME/tools/ ]]; then mkdir -p $HOME/tools/; done
+wget "https://launch.basespace.illumina.com/CLI/latest/amd64-linux/bs" -O $HOME/tools/basespace
+chmod u+x $HOME/tools/basespace
+./basespace auth
+### follow path to website and sign in
+### should display "Welcome [name of user]
+```
 ---
 
 ## **Reproducibility**
