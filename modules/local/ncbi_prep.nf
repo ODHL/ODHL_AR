@@ -26,5 +26,10 @@ process NCBI_PREP {
         $sample_list \
         $pipeline_results \
         $wgsDB_results
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+    post_process_tag: "v1.0"
+    END_VERSIONS
     """
 }

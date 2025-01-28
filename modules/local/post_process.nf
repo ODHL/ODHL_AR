@@ -9,7 +9,7 @@ process POST_PROCESS {
 
     output:
     path('pipeline_results.csv')         , emit: pipeline_results
-    path('quality_results.csv')           , emit: quality_results
+    path('quality_results.csv')          , emit: quality_results
     path("versions.yml")                 , emit: versions
 
     script:

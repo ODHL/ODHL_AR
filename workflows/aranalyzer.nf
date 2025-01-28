@@ -300,16 +300,20 @@ workflow arANALYZER {
         ch_scaffoldOutcome = SCAFFOLD_COUNT_CHECK.out.outcome
         ch_scaffoldSummary = SCAFFOLD_COUNT_CHECK.out.summary_line
 
-        // Filter: Only continue with samples that have more than 0 scaffolds left in the file
-        ch_filtered_scaffolds = ch_bbmapFiltScaffolds
-            .join(ch_scaffoldOutcome, by: 0)
-            .map { meta, filtered_scaffolds, scaffold_outcome -> 
-                [meta, filtered_scaffolds, scaffold_outcome]
-            }
-            .filter { entry ->
-                def scaffold_file = entry[2]  // Extract the scaffold_complete.txt path
-                scaffold_file.text.readLines().any { it.contains('PASSED: More than 0 scaffolds') }
-            }
+    // Normalize ch_bbmapFiltScaffolds to remove 'single_end' key
+    // Join with ch_scaffoldOutcome using ID
+    ch_filtered_scaffolds = ch_bbmapFiltScaffolds.map { entry -> 
+            def meta = entry[0] instanceof Map ? [id: entry[0].id] : [id: entry[0]]  // Remove single_end
+            [meta, entry[1]]
+        }
+        .join(ch_scaffoldOutcome, by: 0)
+        .map { meta, scaffold_file, filtered_scaffold -> 
+            [meta, scaffold_file, filtered_scaffold]
+        }
+        .filter { entry -> 
+            def scaffold_file = file(entry[2])  // Ensure it's treated as a file
+            scaffold_file.exists() && scaffold_file.text.readLines().any { it.contains('PASSED: More than 0 scaffolds') }
+        }
 
         // Running gamma to identify hypervirulence genes in scaffolds
         GAMMA_HV (

@@ -25,6 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_odhl
 
 // Modules
 include { BASESPACE                 } from './modules/local/basespace'
+include { NCBI_POST                 } from './modules/local/ncbi_post'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -64,10 +65,16 @@ workflow arANALYSIS {
     samplesheet = file(params.input)
     labResults  = file(params.labResults)
     ch_versions = Channel.empty()
+    project_id  = params.projectID
+    ch_wgs_db   = Channel.fromPath(params.wgs_db)
+    ch_ncbi_db  = Channel.fromPath(params.ncbi_db)
 
     main:
         // set download 
         runBASESPACE = params.runBASESPACE.toBoolean()
+
+        // set NCBI post processing
+        ncbiProcess  = params.ncbiProcess.toBoolean()
 
         // Read input
         CREATE_INPUT_CHANNEL(
@@ -103,38 +110,22 @@ workflow arANALYSIS {
         )
         ch_pipelineResults = dbSUBMISSION.out.pipelineResults
 
+        // POST NCBI
+        if (ncbiProcess) {
+            NCBI_POST(
+                project_id,
+                ch_ncbi_db,
+                ch_wgs_db,
+                ch_quality_results
+            )
+            ch_ncbi_output = NCBI_POST.out.ncbi_output
+        }
+
+        // Basic Report
+
     emit:
         pipelineResults = ch_pipelineResults
         quality_results = ch_quality_results
-}
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
-workflow arPOST {
-    // set variables
-    project_id          = params.projectID
-    ch_pipelineResults  = arANALYSIS.out.pipelineResults
-    ch_quality_results  = arANALYSIS.out.quality_results
-    ch_wgs_db           = Channel.fromPath(params.wgs_db)
-    ch_ncbi_db          = Channel.fromPath(params.ncbi_db)
-
-    main:
-        dbPOST(
-            project_id,
-            ch_ncbi_db,
-            ch_wgs_db,
-            ch_quality_results
-        )
-        ch_ncbi_output = dbPOST.out.ncbi_output
-
-        arREPORT(
-            ch_pipelineResults,
-            ch_ncbi_output
-        )
-
-    emit:
-        ncbi_output = ch_ncbi_output
 }
 
 //

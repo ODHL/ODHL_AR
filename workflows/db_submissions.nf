@@ -84,13 +84,7 @@ workflow dbSUBMISSION {
 
     
     emit:
-        wgsDB_results        = ch_wgsDB_results
-    //     trimmed_reads    = ch_trmdFailed
-    //     mlst             = ch_mlstCheck
-    //     amrfinder_output = ch_amrfinderReport
-    //     gamma_ar         = ch_gammaAR
-    //     phx_summary      = ch_line_summary
-    //     pipe_results     = ch_pipe_results
+        pipelineResults        = ch_wgsDB_results
 }
 
 /*

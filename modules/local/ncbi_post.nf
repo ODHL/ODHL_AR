@@ -8,7 +8,7 @@ process NCBI_POST {
     path(sample_list)
 
     output:
-    path('ncbi_resultIDs.csv')               , emit: ncbi_output
+    path('srr_db_results.csv')               , emit: ncbi_output
     path("versions.yml")                     , emit: versions
 
     script:
@@ -18,5 +18,11 @@ process NCBI_POST {
         $ncbiDB_file \
         $wgsDB_file \
         $sample_list
+
+    cat <<-END_VERSIONS >> versions.yml
+    "${task.process}":
+        post_process_tag: "v1.0"
+    END_VERSIONS
+
     """
 }

@@ -30,6 +30,15 @@ wgsDB_file=$8
 source $(dirname "$0")/core_functions.sh
 eval $(parse_yaml ${ncbiConfig} "config_")
 
+#########################################################
+# project variables
+#########################################################
+#set year
+year="2025"
+
+# set date
+date_stamp=`date '+%Y_%m_%d'`
+
 ##########################################################
 # Set files, dir
 #########################################################
@@ -44,14 +53,6 @@ upload_dir="upload_dir"
 mkdir -p $upload_dir
 
 #########################################################
-# project variables
-#########################################################
-#set year
-year="2025"
-
-# set date
-date_stamp=`date '+%Y_%m_%d'`
-#########################################################
 # Controls
 #########################################################
 flag_prep="Y"
@@ -63,6 +64,7 @@ flag_precheck="Y"
 # NCBI Prep
 if [[ $flag_prep == "Y" ]]; then
 
+	sample_list=($(cut -d',' -f1 $sample_list))
 	for id in "${sample_list[@]}"; do
         echo "--sample: $sample_id"
     
@@ -71,7 +73,7 @@ if [[ $flag_prep == "Y" ]]; then
         wgs_id=`cat $wgsDB_file | grep $clean_id | cut -f1 -d","`
         
         # check the old ncbi file to make sure it hasnt been updated
-		srr_old=`cat $ncbiDB_file | grep $wgs_id | cut -f1 -d","` 
+		srr_old=`cat $ncbiDB_file | grep $wgs_id | cut -f3 -d","` 
 		if [[ $srr_old == "" ]]; then
 			echo "NEW SAMPLE: $clean_id ($wgs_id)"
 			echo $clean_id >> $ncbi_upload
@@ -97,7 +99,7 @@ if [[ $flag_prep == "Y" ]]; then
 	IFS=$'\n' read -d '' -r -a sample_list < $ncbi_upload
 	for id in "${sample_list[@]}"; do
 		# set variables from wgsDB_file
-		wgsID=`cat $wgsDB_file | grep $id | awk -F"," '{print $2}'`
+		wgsID=`cat $wgsDB_file | grep $id | cut -f1 -d","`
 		SID=$(awk -F";" -v sid=$id '{ if ($1 == sid) print NR }' $pipeline_results)
 		organism=`cat $pipeline_results | awk -F"\t" -v i=$SID 'FNR == i {print $14}' | sed "s/([0-9]*.[0-9]*%)//g" | sed "s/  //g"`
 			
