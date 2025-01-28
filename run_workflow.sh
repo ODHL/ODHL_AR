@@ -20,7 +20,7 @@ helpFunction()
 {
    echo ""
    echo "Usage: $1 -e [REQUIRED] entry"
-   echo -e "\t-e options: arBASESPACE,arANALYSIS,DBProcessing,outbreakANALYSIS,outbreakREPORTING,NFCORE_OUTBREAK"
+   echo -e "\t-e options: arBASESPACE,arANALYSIS,arPOST,outbreakANALYSIS,outbreakREPORTING,NFCORE_OUTBREAK"
    echo "Usage: $2 -i [REQUIRED] project_id"
    echo -e "\t-i project id"
    echo "Usage: $3 -r [OPTIONAL] resume_run"
@@ -66,6 +66,9 @@ if [ -z "$nextflowParams" ]; then
    nextflowParams="-profile docker,test --max_memory 7.GB --max_cpus 4"
 fi
 
+# determine entry flag
+if [ $entry == "arPOST" ]; then entry="arANALYSIS --ncbiProcess TRUE"; fi
+
 #set defaults for optional resume
 if [ -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
 
@@ -78,7 +81,7 @@ if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 cmd="nextflow run \
    main.nf \
    $nextflowParams \
-   -entry $entry \ 
+   -entry $entry \
    --outdir $outDir \
    --projectID $project_name \
    -work-dir $outDir/tmp"
