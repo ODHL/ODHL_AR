@@ -37,15 +37,15 @@ This sample will pass all QC thresholdss.
 # Running pipeline
 To execute with Docker:
 ```bash
-nextflow run main.nf -entry arBASESPACE -profile docker,test
+nextflow run main.nf -entry arANALYSIS -profile docker,test
 ```
 To execute with Singularity:
 ```bash
-nextflow run main.nf -entry arBASESPACE -profile singularity,test
+nextflow run main.nf -entry arANALYSIS -profile singularity,test
 ```
 To execute with the provided wrapper:
 ```bash
 bash run_workflow.sh \
-  -e arBASESPACE \
+  -e arANALYSIS \
   -i test
 ```
