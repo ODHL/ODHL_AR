@@ -50,14 +50,15 @@ cp $ncbiDB_file $cachedDB_file
 counter=1
 sample_list=($(cut -d',' -f1 $sample_list))
 for sample_id in "${sample_list[@]}"; do
-	if [[ $sample_id == *ODHL_sample* ]]; then
-		echo "$sample_id,${year}ZN-999$counter,SRAfakeID$counter,SAMNfakeID$counter,$project_id" >> $ncbi_results
-		counter=$((counter+1))
-	else
-		# add the file info to the master database
-		wgsID=`cat $wgsDB_file | grep $sample_id | awk -F"," '{print $2}'`
-		sraID=`cat $ncbi_output | grep $wgsID | awk '{print $1}'`
-		samID=`cat $ncbi_output | grep $wgsID | awk '{print $5}'`
+	echo "sample: $sample_id"
+	# if [[ $sample_id == *ODHL_sample* ]]; then
+	# 	echo "$sample_id,${year}ZN-999$counter,SRAfakeID$counter,SAMNfakeID$counter,$project_id" >> $ncbi_results
+	# 	counter=$((counter+1))
+	# else
+	# 	# add the file info to the master database
+		wgsID=`cat $wgsDB_file | grep $sample_id | awk -F"," '{print $1}'`
+		sraID=`cat $cachedDB_file | grep $wgsID | awk -F"," '{print $3}'`
+		samID=`cat $cachedDB_file | grep $wgsID | awk -F"," '{print $4}'`
 
 		if [[ $sraID == "" ]]; then 
 			sraID=`cat $ncbiDB_file | grep $wgsID | awk '{print $1}'`
@@ -66,10 +67,9 @@ for sample_id in "${sample_list[@]}"; do
 			# add to final output
 			echo "$sample_id,$wgsID,$sraID,$samID,$project_id" >> $cachedDB_file
 		fi
-
 		# add the information to the project specific file
 		echo "$sample_id,$wgsID,$sraID,$samID,$project_id" >> $ncbi_results
-	fi
+	# fi
 done
     
 # cp the cache to the master file
