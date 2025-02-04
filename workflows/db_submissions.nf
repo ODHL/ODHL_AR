@@ -67,7 +67,7 @@ workflow dbSUBMISSION {
             ch_wgs_db
         )
         ch_versions         = ch_versions.mix(WGS_DB.out.versions)
-        ch_wgsDB_results    = ch_versions.mix(WGS_DB.out.wgs_results)
+        ch_wgsDB_results    = WGS_DB.out.wgs_results
 
         // prepare for NCBI upload
         NCBI_PREP (
