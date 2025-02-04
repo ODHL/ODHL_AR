@@ -456,10 +456,10 @@ workflow arANALYZER {
             amr_channel, 
             params.amrfinder_db
         )
-        ch_versions = ch_versions.mix(AMRFINDERPLUS_RUN.out.versions)
-        ch_amrfinderReport = AMRFINDERPLUS_RUN.out.report
-        ch_amrfinderMutationReport = AMRFINDERPLUS_RUN.out.mutation_report
-
+        ch_amrfinderReport          = AMRFINDERPLUS_RUN.out.report.map { it[1] }.collect()
+        ch_amrfinderMutationReport  = AMRFINDERPLUS_RUN.out.mutation_report
+        ch_versions                 = ch_versions.mix(AMRFINDERPLUS_RUN.out.versions)
+        
         // Combining determined taxa with the assembly stats based on meta.id
         assembly_ratios_ch = ch_taxaID.map{meta, taxonomy   -> [[id:meta.id], taxonomy]}\
             .join(ch_quastReport.map{                         meta, report_tsv -> [[id:meta.id], report_tsv]}, by: [0])
@@ -536,9 +536,9 @@ workflow arANALYZER {
 
         // Post processing
         //// Gather needed files
-        all_fastp_files = ch_fastp_total_qc.map { it[1] }  // Extract just the file path
+        all_fastp_files     = ch_fastp_total_qc.map { it[1] }  // Extract just the file path
         all_pipeStats_files = ch_pipeStats.map { it[1] }  // Extract just the file path
-        all_files_ch = all_fastp_files.concat(all_pipeStats_files).collect()
+        all_files_ch        = all_fastp_files.concat(all_pipeStats_files).collect()
 
         // Run post processing
         POST_PROCESS(
@@ -556,7 +556,7 @@ workflow arANALYZER {
         scaffolds         = ch_bbmapFiltScaffolds
         trimmed_reads     = ch_trmdFailed
         mlst              = ch_mlstCheck
-        amrfinder_output  = ch_amrfinderReport
+        geneFiles         = ch_amrfinderReport
         gamma_ar          = ch_gammaAR
         phx_summary       = ch_line_summary
         pipe_results      = ch_pipe_results
