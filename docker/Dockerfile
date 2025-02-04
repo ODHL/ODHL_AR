@@ -1,19 +1,22 @@
-# Use the official Miniconda image
+# Use a stable base image (Debian-based Miniconda)
 FROM continuumio/miniconda3
 
 # Set working directory
 WORKDIR /env
 
-# Copy Conda environment file
-COPY basic_report.yaml /env/environment.yml
+# Copy Conda environment file to the container
+COPY basic_report.yaml /env/basic_report.yaml
 
-# Install the Conda environment
-RUN conda env create -f /env/environment.yml
+# Install Bash and basic utilities (ensure shell execution works)
+RUN apt-get update && apt-get install -y bash coreutils
+
+# Create and activate the Conda environment
+RUN conda env create -f /env/basic_report.yaml
 
 # Activate the environment by default
-RUN echo "conda activate my_environment" >> ~/.bashrc
-ENV PATH /opt/conda/envs/my_environment/bin:$PATH
+RUN echo "conda activate basic_report" >> ~/.bashrc
+ENV PATH /opt/conda/envs/basic_report/bin:$PATH
 
-# Set entrypoint
+# Set default shell
 ENTRYPOINT ["/bin/bash"]
 
