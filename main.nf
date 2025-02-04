@@ -26,6 +26,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_odhl
 // Modules
 include { BASESPACE                 } from './modules/local/basespace'
 include { NCBI_POST                 } from './modules/local/ncbi_post'
+include { REPORT_BASIC              } from './modules/local/ar_basic'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -68,13 +69,14 @@ workflow arANALYSIS {
     project_id  = params.projectID
     ch_wgs_db   = Channel.fromPath(params.wgs_db)
     ch_ncbi_db  = Channel.fromPath(params.ncbi_db)
+    ch_core_functions_script    = Channel.fromPath(params.coreFunctions)
+    ch_basic_RMD = Channel.fromPath(params.basic_RMD)
 
     main:
-        // set download 
-        runBASESPACE = params.runBASESPACE.toBoolean()
-
-        // set NCBI post processing
-        ncbiProcess  = params.ncbiProcess.toBoolean()
+        // Set param flags
+        runBASESPACE    = params.runBASESPACE.toBoolean()
+        runNcbiProcess  = params.runNcbiProcess.toBoolean()
+        runBasicReport  = params.runBasicReport.toBoolean()
 
         // Read input
         CREATE_INPUT_CHANNEL(
@@ -99,8 +101,9 @@ workflow arANALYSIS {
             ch_versions
         )
         ch_analyzer_results = arANALYZER.out.pipe_results
-        ch_quality_results = arANALYZER.out.quality_results
-        ch_versions = arANALYZER.out.versions
+        ch_quality_results  = arANALYZER.out.quality_results
+        ch_all_geneFiles    = arANALYZER.out.geneFiles
+        ch_versions         = arANALYZER.out.versions
 
         // Submit to WGS DB, Prepare for NCBI DB
         dbSUBMISSION(
@@ -111,7 +114,7 @@ workflow arANALYSIS {
         ch_pipelineResults = dbSUBMISSION.out.pipelineResults
 
         // POST NCBI
-        if (ncbiProcess) {
+        if (runNcbiProcess) {
             NCBI_POST(
                 project_id,
                 ch_ncbi_db,
@@ -122,6 +125,17 @@ workflow arANALYSIS {
         }
 
         // Basic Report
+        if (runBasicReport){
+            REPORT_BASIC(
+                ch_core_functions_script,
+                ch_basic_RMD,
+                project_id,
+                ch_analyzer_results,
+                ch_ncbi_db,
+                ch_wgs_db,
+                ch_all_geneFiles
+            )
+        }
 
     emit:
         pipelineResults = ch_pipelineResults
