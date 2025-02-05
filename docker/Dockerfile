@@ -16,7 +16,3 @@ RUN conda env create -f /env/basic_report.yaml
 # Activate the environment by default
 RUN echo "conda activate basic_report" >> ~/.bashrc
 ENV PATH /opt/conda/envs/basic_report/bin:$PATH
-
-# Set default shell
-ENTRYPOINT ["/bin/bash"]
-
