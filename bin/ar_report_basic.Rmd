@@ -12,8 +12,6 @@ output:
 params:
   configFILE: "config_ar_report.yaml"
   sampletable: "final_report.csv"
-  snpmatrix: "snp_distance_matrix.tsv"
-  tree: "core_genome.tree"
   arpredictions: "ar_predictions.tsv"
   projectname: "REP_PROJID"
   date: "REP_DATE"
@@ -32,7 +30,6 @@ library(plotly)
 library(pander)
 library(kableExtra)
 library(ape)
-library(ggtree)
 library(heatmaply)
 library(phytools)
 library(DT)
@@ -58,16 +55,12 @@ if (params$testing=="N"){
   configFILE=params$configFILE
   date=params$date
   sampletable=params$sampletable
-  snpmatrix=params$snpmatrix
-  tree=params$tree
   arpredictions=params$arpredictions
 } else {
   projectname="OH-M6588-231201"
   outdir="OH-M6588-231201/"
   date="12/18/23"
   sampletable="final_report.csv"
-  snpmatrix="snp_distance_matrix.tsv"
-  tree="core_genome.tree"
   arpredictions="ar_predictions.tsv"
 }
 ```
@@ -96,9 +89,6 @@ methodsTEXT <- config$methods.text
 ## get sample table
 sampleDF <- read.csv2(sampletable,sep=",")
 rownames(sampleDF)=sampleDF$specimen_id
-
-# get tree
-treepath <- tree
 
 # get ar-summary
 ar_summary <- read.csv2(arpredictions,sep='\t',check.names = F)
