@@ -18,7 +18,7 @@ process MLST {
     // mlst is suppose to allow gz and non-gz, but when run in the container (outside of the pipeline) it doesn't work. Also, doesn't work on terra so adding unzip step
     def container = task.container.toString() - "quay.io/jvhagey/mlst@"
     def mlst_version = "2.23.0_01242024"
-    def mlst_version_clean = mlst_version.split("_")[0]
+    def mlst_version_clean = mlst_version.split("_")[1]
     """
     if [[ ${fasta} = *.gz ]]
     then
@@ -88,14 +88,11 @@ process MLST {
 
     # Add in generic header
     sed -i '1i source_file  Database  ST  locus_1 locus_2 locus_3 locus_4 locus_5 locus_6 locus_7 locus_8 lous_9  locus_10' ${prefix}.tsv
-
-    #handling to get database version being used
-    db_version=\$(cat /mlst-${mlst_version_clean}/db/db_version | date -f - +%Y-%m-%d )
     
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         mlst: \$( echo \$(mlst --version 2>&1) | sed 's/mlst //' )
-        mlst_db: \$db_version
+        mlst_db: ${mlst_version_clean}
         mlst_container: ${container}
     END_VERSIONS
     """

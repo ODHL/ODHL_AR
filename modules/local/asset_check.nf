@@ -11,7 +11,7 @@ process ASSET_CHECK {
     path("versions.yml"),               emit: versions
     path('*.msh'),                      emit: mash_sketch
     path('db'),                         emit: mlst_db
-    path('*_folder'),                   emit: kraken2_db
+    path('kraken2_folder'),                   emit: kraken2_db
 
     when:
     task.ext.when == null || task.ext.when
@@ -25,7 +25,8 @@ process ASSET_CHECK {
     
     tar --use-compress-program="pigz -vdf" -xf ${mlst_db_path}
     
-    tar --use-compress-program="pigz -vdf" -xf ${kraken2_db}
+    mkdir -p kraken2_folder
+    tar --use-compress-program="pigz -vdf" -xf ${kraken2_db} -C kraken2_folder
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

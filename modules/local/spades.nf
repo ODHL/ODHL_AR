@@ -1,6 +1,6 @@
 process SPADES {
     tag "$meta.id"
-    label 'process_high_memory'
+    label 'process_high'
     // v3.15.5
     container 'quay.io/staphb/spades@sha256:b33f57d65cb63d631c6e3ba9b2a1c5a11ff4351475f38a1108ec61a5bf430077'
 
