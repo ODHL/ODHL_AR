@@ -26,7 +26,8 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_odhl
 // Modules
 include { BASESPACE                 } from './modules/local/basespace'
 include { NCBI_POST                 } from './modules/local/ncbi_post'
-include { REPORT_BASIC              } from './modules/local/ar_basic'
+include { REPORT_PREP               } from './modules/local/report_prep'
+include { REPORT_BASIC              } from './modules/local/report_basic'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -63,15 +64,17 @@ workflow arBASESPACE {
 workflow arANALYSIS {
 
     // set test samplesheet
-    samplesheet = file(params.input)
-    labResults  = file(params.labResults)
-    ch_versions = Channel.empty()
-    project_id  = params.projectID
-    ch_wgs_db   = Channel.fromPath(params.wgs_db)
-    ch_ncbi_db  = Channel.fromPath(params.ncbi_db)
+    samplesheet                 = file(params.input)
+    labResults                  = file(params.labResults)
+    ch_versions                 = Channel.empty()
+    project_id                  = params.projectID
+    ch_wgs_db                   = Channel.fromPath(params.wgs_db)
+    ch_ncbi_db                  = Channel.fromPath(params.ncbi_db)
     ch_core_functions_script    = Channel.fromPath(params.coreFunctions)
-    ch_basic_RMD = Channel.fromPath(params.basic_RMD)
-
+    ch_basic_RMD                = Channel.fromPath(params.basic_RMD)
+    ch_config_arReport          = Channel.fromPath(params.config_arReport)
+    ch_odhl_logo                = Channel.fromPath(params.odhl_logo)
+    
     main:
         // Set param flags
         runBASESPACE    = params.runBASESPACE.toBoolean()
@@ -126,7 +129,7 @@ workflow arANALYSIS {
 
         // Basic Report
         if (runBasicReport){
-            REPORT_BASIC(
+            REPORT_PREP(
                 ch_core_functions_script,
                 ch_basic_RMD,
                 project_id,
@@ -135,11 +138,26 @@ workflow arANALYSIS {
                 ch_wgs_db,
                 ch_all_geneFiles
             )
+            ch_final_report        = REPORT_PREP.out.CSVreport
+            ch_updated_basicRMD    = REPORT_PREP.out.RMD
+            ch_predictions         = REPORT_PREP.out.predictions
+
+            REPORT_BASIC(
+                ch_updated_basicRMD,
+                project_id,
+                ch_final_report,
+                ch_predictions,
+                ch_config_arReport,
+                ch_odhl_logo
+            )
+            ch_basicHTMLreport    = REPORT_BASIC.out.HTMLreport
+            ch_basicHTMLreport.view()
         }
 
     emit:
-        pipelineResults = ch_pipelineResults
-        quality_results = ch_quality_results
+        pipelineResults     = ch_pipelineResults
+        quality_results     = ch_quality_results
+        basicHTMLreport     = ch_basicHTMLreport
 }
 
 //
