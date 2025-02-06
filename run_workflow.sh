@@ -77,7 +77,6 @@ outDir="/home/ubuntu/output/$project_name"
 if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 
 # arBASESPACE
-#all,analyze,dbUpload,dbPost,outbreakAnalyze,outbreakReport"
 cmd="nextflow run \
    main.nf \
    $nextflowParams \
