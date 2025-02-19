@@ -195,14 +195,6 @@ if [[ "${options_found}" -eq 0 ]]; then
 	exit
 fi
 
-# Checks for proper argumentation
-# Checks for correct parameter s and sets appropriate outdatadirs
-
-#OUTDATADIR="${epath}"
-#project=$(echo "${epath}" | rev | cut -d'/' -f2 | rev)
-#sample_name=$(basename "${raw_read_counts}" _raw_read_counts.txt) # don't need this anymore as we are passing with -1
-
-
 # Creates and prints header info for the sample being processed
 today=$(date)
 echo "---------- Checking ${sample_name} for successful completion on ${today} ----------"  > "${sample_name}.synopsis"
@@ -301,6 +293,7 @@ if [[ "${run_type}" == "all" ]]; then
 	trimmed_length_R1=-3
 	trimmed_length_R2=-3
 	trimmed_length_unpaired=-3
+	
 	#Checking QC counts
 	if [[ -s "${total_read_counts}" ]]; then
 		trimmed_length_R1=$(tail -n1  ${total_read_counts} | cut -d$'\t' -f3)
@@ -449,14 +442,13 @@ if [[ "${run_type}" == "all" ]]; then
 		number_of_genera=0
 		while IFS= read -r line; do
 			arrLine=(${line})
+			
 			# First element in array is the percent of reads identified as the current taxa
 			percent=${arrLine[0]}
 			percent_integer=$(echo "${percent}" | cut -d'.' -f1)
-			# 3rd element is the taxon level classification
-			# echo "${percent_integer} vs ${contamination_threshold}"
 			classification=${arrLine[3]}
+
 			if [[ "${classification}" == "G" ]] && (( percent_integer > kraken2_contamination_threshold )); then
-				#echo "Adding ${arrLine[5]}-${percent_integer}-${contamination_threshold} to list"
 				number_of_genera=$(( number_of_genera + 1 ))
 			fi
 		done < "${kraken2_trimd_report}"
@@ -496,17 +488,17 @@ else
 	status="FAILED"
 fi
 
-
 #Check short scaffolds reduction script
 if [[ -s "${trimmed_assembly}" ]]; then
 	# Count the number of '>' still remaining after trimming the contig file
 	full_longies=$(zgrep -c '>' "${trimmed_assembly}")
+	
 	# Calculate the number of lost (short) scaffolds
 	full_shorties=$(( full_scaffolds - full_longies ))
 	if [ -z ${full_shorties} ]; then
 		full_shorties=0
 	fi
-	#echo "${full_longies}"
+
 	if [[ "${full_longies}" -le 200 ]]; then
 		printf "%-30s: %-8s : %s\\n" "SCAFFOLD_TRIM" "SUCCESS" "${full_longies} scaffolds remain. ${full_shorties} were removed due to shortness"  >> "${sample_name}.synopsis"
 	elif [[ "${full_longies}" -gt 200 ]] && [[ "${full_longies}" -le 500 ]]; then
@@ -558,24 +550,14 @@ if [[ "${internal_phoenix}" == "true" ]]; then
 		speciespostpercent=$(sed -n '9p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
 		genuspostpercent=$(sed -n '8p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
 
-    #unclass=$(sed -n '2p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
-		#domain=$(sed -n '3p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
-		#genuspost=$(sed -n '8p' "${kraken2_asmbled_summary}" | cut -d' ' -f3 | xargs echo)
-		#speciespost=$(sed -n '9p' "${kraken2_asmbled_summary}" | cut -d' ' -f3- | xargs echo)
-		#speciespostpercent=$(sed -n '9p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
-		#genuspostpercent=$(sed -n '8p' "${kraken2_asmbled_summary}" | cut -d' ' -f2 | xargs echo)
-
-
-
 		if [[ "${unclass}" = "UNK" ]]; then
 			unclass=0
 			unclass_string="UNKNOWN"
 		else
 			unclass_string="${unclass}"
 		fi
-		#true_speciespercent=$(sed -n '8p' "${OUTDATADIR}/kraken2/postAssembly/${sample_name}_kraken_summary_assembled.txt" | cut -d' ' -f3 | sed -r 's/[)]+/%)/g')
-		# If there are no reads at the domain level, then report no classified reads
 
+		# If there are no reads at the domain level, then report no classified reads
 		if (( $(echo "${domain} <= 0" | $bc_path -l) )); then
 			if [[ "${kraken2_unweighted_success}" = true ]]; then
 				printf "%-30s: %-8s : %s\\n" "KRAKEN2_CLASSIFY_ASMBLD" "FAILED" "There are no classified reads (Did post assembly kraken2 fail too?)"	>> "${sample_name}.synopsis"
@@ -598,7 +580,6 @@ if [[ "${internal_phoenix}" == "true" ]]; then
 					status="WARNING"
 				fi
 			else
-				#printf "%-30s: %-8s : %s\\n" "kraken2 on assembly" "SUCCESS" "${speciespercent}%${true_speciespercent%} ${genuspost} ${speciespost} with ${unclass}%${true_unclass%} unclassified contigs"
 				printf "%-30s: %-8s : %s\\n" "KRAKEN2_CLASSIFY_ASMBLD" "SUCCESS" "${genuspost}(${genuspostpercent}%) ${speciespost}(${speciespostpercent}%) with ${unclass_string}% unclassified scaffolds"  >> "${sample_name}.synopsis"
 			fi
 		fi
@@ -611,7 +592,7 @@ if [[ "${internal_phoenix}" == "true" ]]; then
 	# Quick separate check for contamination by finding # of species above ${contamination_threshold} in list file from kraken2
 	if [[ -s "${kraken2_asmbld_report}" ]]; then
 		number_of_genera=0
-		#echo "${kraken2_asmbld_report}" >> "${sample_name}.synopsis"
+
 		while IFS= read -r line; do
 			arrLine=(${line})
 			# First element in array is the percent of reads identified as the current taxa
@@ -636,14 +617,12 @@ if [[ "${internal_phoenix}" == "true" ]]; then
 			if [[ "${status}" = "ALERT" ]] || [[ "${status}" = "SUCCESS" ]]; then
 				status="WARNING"
 			fi
-			#echo "Number of genera: ${number_of_genera}"
 		fi
 	fi
 fi
 
 kraken2_weighted_success=false
 if [[ -s "${kraken2_weighted_report}" ]]; then
-	#printf "%-30s: %-8s : %s\\n" "kraken2 weighted" "SUCCESS" "Found"
 	kraken2_weighted_success=true
 else
 	printf "%-30s: %-8s : %s\\n" "KRAKEN2_WEIGHTED" "FAILED" "${sample_name}.kraken2_wtasmbld.summary.txt not found"  >> "${sample_name}.synopsis"
@@ -714,11 +693,9 @@ if [[ -s "${kraken2_weighted_report}" ]]; then
 			#echo "total percent:${unclass} + ${root} = ${total}"
     else
 		percent=$(echo "${arrLine[0]} ${total_percent}" | awk '{ printf "%2.2f", ($1*100)/$2 }' )
-		#percent=${arrLine[0]}
 		percent_integer=$(echo "${percent}" | cut -d'.' -f1)
 		# 3rd element is the taxon level classification
 		classification=${arrLine[3]}
-		#echo "${arrLine[0]} - ${total_percent} - ${percent} - ${percent_integer} - ${kraken2_contamination_threshold} - ${classification}"
 		if [[ "${classification}" == "G" ]] && (( percent_integer > kraken2_contamination_threshold )); then
 			number_of_genera=$(( number_of_genera + 1 ))
 		fi
@@ -864,6 +841,7 @@ if [[ -s "${total_read_counts}" ]]; then
 	else
 		avg_coverage=0
 	fi
+
 	if (( $(echo "${avg_coverage} > ${reads_low}" | $bc_path -l) )) && (( $(echo "${avg_coverage} < ${reads_high}" | $bc_path -l) )); then
 		printf "%-30s: %-8s : %s\\n" "COVERAGE" "SUCCESS" "${avg_coverage}x coverage based on trimmed reads (Target:40x, Cutoff: ${reads_min}x)"  >> "${sample_name}.synopsis"
 	elif (( $(echo "${avg_coverage} > ${reads_high}" | $bc_path -l) )); then
@@ -879,7 +857,7 @@ if [[ -s "${total_read_counts}" ]]; then
 	elif (( $(echo "${avg_coverage} < ${reads_min}" | $bc_path -l) )); then
 		printf "%-30s: %-8s : %s\\n" "COVERAGE" "FAILED" "${avg_coverage}x coverage based on trimmed reads (Min:30x)"  >> "${sample_name}.synopsis"
 		status="FAILED"
-    QC_FAIL=$QC_FAIL"coverage_below_30($avg_coverage)-"
+    	QC_FAIL=$QC_FAIL"coverage_below_30($avg_coverage)-"
 	fi
 fi
 
@@ -1118,8 +1096,6 @@ echo "ALERT: something to note, does not mean it is a poor-quality assembly."  >
 if [[ "${internal_phoenix}" == "true" ]]; then
 	printf "\n*BUSCO defines core genes as single-copy orthologs that should be highly conserved among the closely related species."  >> "${sample_name}.synopsis"
 fi
-
-
 
 #Script exited gracefully (unless something else inside failed)
 exit 0

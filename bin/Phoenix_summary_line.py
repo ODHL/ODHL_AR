@@ -41,40 +41,15 @@ def parseArgs(args=None):
 CRED = '\033[91m'
 CEND = '\033[0m'
 
-# def MLST_Info_Only(MLST_file):
-#     """Pulls MLST info from *_Scheme.mlst file"""
-#     f = open(MLST_file, 'r')
-#     f.readline()
-#     String1 = f.readline()
-#     ST = String1.split()[2]
-#     Scheme = String1.split()[1]
-#     Out = ST + ' (' + Scheme + ')'
-#     return Out
-
-# def MLST_ST(MLST_file):
-#     """Pulls MLST info from *_Scheme.mlst file"""
-#     ST_list = []
-#     with open(MLST_file, 'r') as f:
-#         lines = f.readlines()
-#         lines.pop(0)
-#         for line in lines:
-#             ST = "ST" + line.split()[2]
-#             ST_list.append(ST)
-#         if "ST-" in ST_list:
-#             ST_list = [re.sub("ST-", "-", i) for i in ST_list]
-#     return ST_list
-
 def MLST_Scheme(MLST_file):
     """Pulls MLST info from *_Scheme.mlst file"""
     Scheme_list = [[],[],[],[],[]]
     with open(MLST_file, 'r') as f:
         lines = f.readlines()
         lines.pop(0)
-        #print(len(lines), lines)
         for rawline in lines:
             line=rawline.strip()
             split_line = line.split("\t")
-            #print("\n".join(split_line))
             source = split_line[1]
             date = split_line[2]
             DB_ID = split_line[3]
@@ -109,7 +84,6 @@ def MLST_Scheme(MLST_file):
             for i in Scheme_list:
                 for j in i:
                     print(j)
-            #print("\n".join(Scheme_list))
     return Scheme_list
 
 def Contig_Count(input_quast):
@@ -159,8 +133,8 @@ def GC_Content(input_quast):
 def Assembly_Ratio(ratio_file):
     f = open(ratio_file, 'r')
     String1 = f.readline()
-    Ratio = 'Unknown'
-    SD = 'Unknown'
+    Ratio = 'UNK'
+    SD = 'UNK'
     while String1 != '':
         if ('Isolate_St.Devs' in String1):
             SD = String1.split()[1]
@@ -184,12 +158,17 @@ def Assembly_Ratio_Length(ratio_file):
     return Out
 
 def Trimmed_BP(trimmed_counts_file):
-    f = open(trimmed_counts_file, 'r')
-    String1 = f.readline()
-    String1 = f.readline()
-    BP = String1.split()[-3]
-    BP = int(BP)
-    return BP
+    # Open the file in read mode
+    with open(trimmed_counts_file, 'r') as f:
+        # Read the second line of data
+        data_line = f.read().strip()  # Make sure to use `strip()` to remove extra whitespace
+        columns = data_line.split()
+    # Split the line by spaces or tabs (depending on your file format) and extract the third-to-last element
+    bp = columns[-3] # The third-to-last column is assumed to be Total_Sequenced_[bp]
+    # Convert the extracted BP value to an integer
+    bp = int(bp)
+    return bp
+
 
 def Trim_Coverage(trimmed_counts_file, ratio_file):
     Length = Assembly_Ratio_Length(ratio_file)
@@ -276,13 +255,6 @@ def QC_Pass(stats):
     return status_end, reason_end, warning_count
 
 def Get_Kraken_reads(stats, trimd_kraken):
-#    if stats is not None:
-#        with open(stats, 'r') as f:
-#            for line in f:
-#                if line.startswith("KRAKEN2_CLASSIFY_READS"):
-#                    read_match = re.findall(r': .*? with', line)[0]
-#                    read_match = re.sub( ": SUCCESS  : | with", '', read_match)
-#    else:
     with open(trimd_kraken, "r") as f:
         for line in f:
             if line.startswith("G:"):
@@ -313,10 +285,10 @@ def Get_Taxa_Source(taxa_file, fastani):
                     percent_match = str(line.split('\t')[0]) + " ANI_match"
         if (taxa_source == "kraken2_trimmed"):
             percent_match = percent_match + "% Reads_assigned"
-            fastani_coverage = "Unknown"
+            fastani_coverage = "UNK1"
         if (taxa_source == "kraken2_wtasmbld"):
             percent_match = percent_match + "% Scaffolds_assigned"
-            fastani_coverage = "Unknown"
+            fastani_coverage = "UNK2"
         lines = f.readlines()
         for line in lines:
             if line.startswith("G:"):
@@ -379,56 +351,44 @@ def Isolate_Line(Taxa, fastani, ID, trimmed_counts, ratio_file, MLST_file, quast
     try:
         plasmid_marker_list = Get_Plasmids(pf_file)
     except:
-        plasmid_marker_list = 'Unknown'
+        plasmid_marker_list = 'UNK'
     try:
         point_mutations_list = Get_Mutations(amr_file)
     except:
-        point_mutations_list = 'Unknown'
+        point_mutations_list = 'UNK'
     try:
         taxa_source, percent_match, Species, fastani_coverage = Get_Taxa_Source(Taxa, fastani)
     except:
-        taxa_source = 'Unknown'
-        percent_match = 'Unknown'
-        Species = 'Unknown'
-        fastani_coverage = "Unknown"
+        taxa_source = 'UNK'
+        percent_match = 'UNK'
+        Species = 'UNK'
+        fastani_coverage = "UNK3"
     try:
         Coverage = Trim_Coverage(trimmed_counts, ratio_file)
     except:
-        Coverage = 'Unknown'
+        Coverage = 'UNKWTFx2'
     try:
         Genome_Length = Genome_Size(quast_file)
     except:
-        Genome_Length = 'Unknown'
+        Genome_Length = 'UNK'
     try:
         Ratio = Assembly_Ratio(ratio_file)
     except:
-        Ratio = 'Unknown'
+        Ratio = 'UNK'
     try:
         Contigs = Contig_Count(quast_file)
     except:
-        Contigs = 'Unknown'
+        Contigs = 'UNK'
     try:
         busco_line, lineage, busco_file = Get_BUSCO_Gene_Count(stats)
     except:
         busco_file = None
-        busco_line = 'Unknown'
-        lineage = 'Unknown'
+        busco_line = 'UNK'
+        lineage = 'UNK'
     try:
         GC = GC_Content(quast_file)
     except:
-        GC = 'Unknown'
-    # Check the taxa_source to determine where to get Species from
-    # try:
-    #     ST = MLST_ST(MLST_file)
-    #     if len(ST) > 1:
-    #         ST_1 = ST[0]
-    #         ST_2 = ST[1]
-    #     else:
-    #         ST_1 = ST[0]
-    #         ST_2 = "-"
-    # except:
-    #     ST_1 = 'Unknown'
-    #     ST_2 = 'Unknown'
+        GC = 'UNK'
     try:
         Scheme = MLST_Scheme(MLST_file)
         if len(Scheme[0]) > 1:
@@ -474,22 +434,20 @@ def Isolate_Line(Taxa, fastani, ID, trimmed_counts, ratio_file, MLST_file, quast
             MLST_type_2 = "-"
             #MLST_alleles_2 = "-"
     except:
-        MLST_scheme_1 = 'Unknown'
-        MLST_scheme_2 = 'Unknown'
-        MLST_type_1 = 'Unknown'
-        MLST_type_2 = 'Unknown'
-        #MLST_alleles_1 = 'Unknown'
-        #MLST_alleles_2 = 'Unknown'
+        MLST_scheme_1 = 'UNK'
+        MLST_scheme_2 = 'UNK'
+        MLST_type_1 = 'UNK'
+        MLST_type_2 = 'UNK'
     try:
         Bla = Bla_Genes(gamma_ar)
         Bla = ','.join(Bla)
     except:
-        Bla = 'Unknown'
+        Bla = 'UNK'
     try:
         Non_Bla = Non_Bla_Genes(gamma_ar)
         Non_Bla = ','.join(Non_Bla)
     except:
-        Non_Bla = 'Unknown'
+        Non_Bla = 'UNK'
     try:
         HV = HV_Genes(gamma_hv)
         if HV=="":
@@ -497,21 +455,21 @@ def Isolate_Line(Taxa, fastani, ID, trimmed_counts, ratio_file, MLST_file, quast
         else:
             HV = ','.join(HV)
     except:
-        HV = 'Unknown'
+        HV = 'UNK'
     try:
         scaffold_match = WT_kraken_stats(stats)
     except:
-        scaffold_match = "Unknown"
+        scaffold_match = "UNK"
     try:
         QC_Outcome, Reason, warning_count = QC_Pass(stats)
     except:
-        QC_Outcome = 'Unknown'
-        warning_count = 'Unknown'
+        QC_Outcome = 'UNK'
+        warning_count = 'UNK'
         Reason = ""
     try:
         read_match = Get_Kraken_reads(stats, trimd_kraken)
     except:
-        read_match = "Unknown"
+        read_match = "UNK"
     if busco_file is None and extended_qc == False:
         Line = ID + '\t' + QC_Outcome + '\t' + warning_count + '\t'  + Coverage + '\t' + Genome_Length + '\t' + Ratio + '\t' + Contigs + '\t' + GC + '\t' + Species + '\t' + percent_match + '\t' + fastani_coverage + '\t' + taxa_source + '\t' + read_match + '\t' + scaffold_match + '\t' + MLST_scheme_1 + '\t' + MLST_type_1 + '\t' + MLST_scheme_2 + '\t' + MLST_type_2 + '\t' + Bla + '\t' + Non_Bla + '\t' + point_mutations_list + '\t' + HV + '\t' + plasmid_marker_list + '\t' + Reason
         busco = False

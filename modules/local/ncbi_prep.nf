@@ -14,6 +14,8 @@ process NCBI_PREP {
     output:
     path('ncbi_sample_list.csv')               , emit: ncbi_sample_list
     path("versions.yml")                       , emit: versions
+    path("batched_ncbi_att*")
+    path("batched_ncbi_meta*")
 
     script:
     """

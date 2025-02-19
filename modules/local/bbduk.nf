@@ -1,8 +1,9 @@
 process BBDUK {
     tag "$meta.id"
     label 'process_medium'
-    //v39.01
-    container 'staphb/bbtools@sha256:161b0e1e198110b7edff8084ae9854d84eb32789d0fd62c7ced302078911c9d7'
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/bbmap:39.10--h92535d8_0':
+        'biocontainers/bbmap:39.10--h92535d8_0' }"
 
     input:
     tuple val(meta), path(reads), val(fairy_outcome)
@@ -19,10 +20,8 @@ process BBDUK {
     def raw      = meta.single_end ? "in=${reads[0]}" : "in1=${reads[0]} in2=${reads[1]}"
     def trimmed  = meta.single_end ? "out=${prefix}.fastq.gz" : "out1=${prefix}_cleaned_1.fastq.gz out2=${prefix}_cleaned_2.fastq.gz"
     def contaminants_fa = contaminants ? "ref=$contaminants" : ''
-    def maxmem = task.memory.toGiga()-(task.attempt*12) // keep heap mem low so and rest of mem is for java expansion.
-    def container = task.container.toString() - "staphb/bbtools@"
     """
-    maxmem=\$(echo \"$maxmem GB\"| sed 's/ GB/g/g' | sed 's/-//g')
+    maxmem=\$(echo \"$task.memory\"| sed 's/ GB/g/g')
     bbduk.sh \\
         -Xmx\$maxmem \\
         $raw \\
@@ -34,8 +33,7 @@ process BBDUK {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        bbmap: \$(bbversion.sh)
-        bbmap_container: ${container}
+        bbmap: \$(bbversion.sh | grep -v "Duplicate cpuset")
     END_VERSIONS
     """
 }

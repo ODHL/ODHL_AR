@@ -28,7 +28,6 @@ process FASTP {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     def fail_fastq  = save_trimmed_fail ? "--unpaired1 ${prefix}_1.fail.fastq.gz --unpaired2 ${prefix}_2.fail.fastq.gz" : ''
-    def merge_fastq = save_merged ? "-m --merged_out ${prefix}.merged.fastq.gz" : ''
     """
     [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz
     [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz
@@ -40,7 +39,6 @@ process FASTP {
         --json ${prefix}.fastp.json \\
         --html ${prefix}.fastp.html \\
         $fail_fastq \\
-        $merge_fastq \\
         --thread $task.cpus \\
         --detect_adapter_for_pe \\
         $args \\

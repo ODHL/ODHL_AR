@@ -15,7 +15,7 @@ source $(dirname "$0")/$core_functions
 ##########################################################
 # Set files, dir
 #########################################################
-intermed_results="pipeline_results.csv"
+intermed_results="processed_pipeline_results.csv"
 processed_samples="processed_samples.csv"
 quality_results="quality_results.csv"
 
@@ -58,13 +58,13 @@ for sample_id in "${sample_list[@]}"; do
 		cat $rawPipeline_results | awk -F";" -v i=$SID -v reason="${reason}" 'BEGIN {OFS = FS} NR==i {$2="FAIL"; $24=reason}1' > tmp
 		mv tmp $rawPipeline_results
 
-		echo "$sample_id,FAIL,FAILED" >> $quality_results
+		echo "$sample_id,FAIL,SeqFailure" >> $quality_results
 	elif [[ $num_of_warnings -gt 4 ]]; then
 		reason=$(cat $synopsis | grep -v "Summarized" | grep -E "WARNING" | awk -F": " '{print $3}' |  awk 'BEGIN { ORS = "; " } { print }' | sed "s/; ; //g")
 		cat $rawPipeline_results | awk -F";" -v i=$SID -v reason="${reason}" 'BEGIN {OFS = FS} NR==i {$2="FAIL"; $24=reason}1' > tmp
 		mv tmp $rawPipeline_results
 
-		echo "$sample_id,FAIL,WARNING" >> $quality_results
+		echo "$sample_id,FAIL,WARNING($num_of_warnings)" >> $quality_results
 	else
 		if [[ $pipelineStatus == "PASS" && *"$pipelineValue" != *"$labValue"*  ]]; then
 			reason="Lab Discordance"

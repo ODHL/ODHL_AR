@@ -73,7 +73,7 @@ if [ $entry == "arPOST" ]; then entry="arANALYSIS --ncbiProcess TRUE"; fi
 if [ -z "$resume" ]; then nextflowParams="-resume $nextflowParams"; fi
 
 # set output dir, tmp dir
-outDir="/home/ubuntu/output/$project_name"
+outDir="/home/ubuntu/output/$project_name/results"
 if [[ ! -d $outDir/tmp ]]; then mkdir -p $outDir/tmp; fi
 
 # arBASESPACE

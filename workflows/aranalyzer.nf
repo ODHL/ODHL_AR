@@ -11,9 +11,6 @@
 ========================================================================================
 */
 
-// Info required for completion email and summary
-def multiqc_report = []
-
 // Groovy funtion to make [ meta.id, [] ] - just an empty channel
 def create_empty_ch(input_for_meta) { // We need meta.id associated with the empty list which is why .ifempty([]) won't work
     meta_id = input_for_meta[0]
@@ -27,8 +24,6 @@ def create_empty_ch(input_for_meta) { // We need meta.id associated with the emp
 ========================================================================================
 */
 
-ch_multiqc_config        = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config) : Channel.empty()
 
 /*
 ========================================================================================
@@ -37,7 +32,7 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 */
 
 include { ASSET_CHECK                       } from '../modules/local/asset_check'
-include { CORRUPTION_CHECK                  } from '../modules/local/fairy_corruption_check'
+include { CORRUPTION_CHECK                  } from '../modules/local/corruption_check'
 include { GET_RAW_STATS                     } from '../modules/local/get_raw_stats'
 include { BBDUK                             } from '../modules/local/bbduk'
 include { FASTP as FASTP_TRIMD              } from '../modules/local/fastp'
@@ -64,9 +59,6 @@ include { AMRFINDERPLUS_RUN                 } from '../modules/local/amrfinder'
 include { CALCULATE_ASSEMBLY_RATIO          } from '../modules/local/assembly_ratio'
 include { GENERATE_PIPELINE_STATS           } from '../modules/local/generate_pipeline_stats'
 include { CREATE_PHOENIX_SUMMARY_LINE       } from '../modules/local/create_phoenix_summary_line'
-include { CREATE_PHOENIX_SUMMARY            } from '../modules/local/create_phoenix_summary'
-include { POST_PROCESS                      } from '../modules/local/post_process'
-include { WGS_DB                            } from '../modules/local/wgs_db'
 
 /*
 ========================================================================================
@@ -89,8 +81,6 @@ include { DO_MLST                               } from '../subworkflows/local/do
 // MODULE: Installed directly from nf-core/modules
 //
 
-include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-
 /*
 ========================================================================================
     RUN MAIN WORKFLOW
@@ -99,7 +89,6 @@ include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 workflow arANALYZER {
     take:
         ch_reads
-        ch_labResults
         ch_versions
 
     main:
@@ -120,7 +109,7 @@ workflow arANALYZER {
         // fairy compressed file corruption check & generate read stats
         CORRUPTION_CHECK (
             ch_reads, 
-            params.run_busco
+            params.runBUSCO
         )
         ch_versions = ch_versions.mix(CORRUPTION_CHECK.out.versions)
         ch_corruptionStatus = CORRUPTION_CHECK.out.outcome
@@ -135,7 +124,7 @@ workflow arANALYZER {
 
         // Get stats on raw reads if the reads aren't corrupted
         GET_RAW_STATS (
-            read_stats_ch, params.run_busco // false says no busco is being run
+            read_stats_ch, params.runBUSCO // false says no busco is being run
         )
         ch_versions = ch_versions.mix(GET_RAW_STATS.out.versions)
         ch_rawStatus = GET_RAW_STATS.out.raw_outcome
@@ -153,10 +142,13 @@ workflow arANALYZER {
             bbduk_ch, params.bbdukdb
         )
         ch_versions = ch_versions.mix(BBDUK.out.versions)
+        ch_bbdukReads = BBDUK.out.reads
 
         // Trim and remove low quality reads
         FASTP_TRIMD (
-            BBDUK.out.reads, params.save_trimmed_fail, params.save_merged
+            ch_bbdukReads, 
+            params.save_trimmed_fail, 
+            params.save_merged
         )
         ch_versions = ch_versions.mix(FASTP_TRIMD.out.versions)
         ch_trimmedJson=FASTP_TRIMD.out.json
@@ -175,10 +167,9 @@ workflow arANALYZER {
         fastp_json_ch = ch_trimmedJson.join(ch_singlesJson, by: [0,0])
         .join(ch_rawStats, by: [0,0])\
         .join(ch_corruptionStatus, by: [0,0])
-
         // Script gathers data from fastp jsons for pipeline stats file
         GET_TRIMD_STATS (
-            fastp_json_ch, params.run_busco // false says no busco is being run
+            fastp_json_ch, params.runBUSCO // false says no busco is being run
         )
         ch_versions = ch_versions.mix(GET_TRIMD_STATS.out.versions)
         ch_trimmd_outcome = GET_TRIMD_STATS.out.trimmd_outcome
@@ -237,7 +228,7 @@ workflow arANALYZER {
         ch_spadesOutcome = SPADES_WF.out.spades_outcome
         ch_taxaFailure = SPADES_WF.out.taxaFailure
         ch_spadesScaffolds = SPADES_WF.out.ch_spadesScaffolds.map{meta, scaffolds -> [ [id:meta.id, single_end:true], scaffolds]} 
-        //single end needs to be true for kraken2 weighted and assembled steps
+        ch_spadesScaffolds = SPADES_WF.out.ch_spadesScaffolds
 
         // Generate pipeline stats for case when spades fails to create scaffolds
         pipeline_stats_ch = ch_rawStats.map     {  meta, fastp_raw_qc -> [[id: meta.id], fastp_raw_qc] }
@@ -300,268 +291,235 @@ workflow arANALYZER {
         ch_scaffoldOutcome = SCAFFOLD_COUNT_CHECK.out.outcome
         ch_scaffoldSummary = SCAFFOLD_COUNT_CHECK.out.summary_line
 
-    // Normalize ch_bbmapFiltScaffolds to remove 'single_end' key
     // Join with ch_scaffoldOutcome using ID
-    ch_filtered_scaffolds = ch_bbmapFiltScaffolds.map { entry -> 
-            def meta = entry[0] instanceof Map ? [id: entry[0].id] : [id: entry[0]]  // Remove single_end
-            [meta, entry[1]]
-        }
-        .join(ch_scaffoldOutcome, by: 0)
-        .map { meta, scaffold_file, filtered_scaffold -> 
-            [meta, scaffold_file, filtered_scaffold]
-        }
-        .filter { entry -> 
+    ch_filtered_scaffolds = ch_bbmapFiltScaffolds.join(
+        ch_scaffoldOutcome, by: 0
+        ).filter { entry -> 
             def scaffold_file = file(entry[2])  // Ensure it's treated as a file
             scaffold_file.exists() && scaffold_file.text.readLines().any { it.contains('PASSED: More than 0 scaffolds') }
         }
 
-        // Running gamma to identify hypervirulence genes in scaffolds
-        GAMMA_HV (
-            ch_filtered_scaffolds, 
-            params.hvgamdb
-        )
-        ch_versions = ch_versions.mix(GAMMA_HV.out.versions)
-        ch_gammaHV = GAMMA_HV.out.gamma
+    // Running gamma to identify hypervirulence genes in scaffolds
+    GAMMA_HV (
+        ch_filtered_scaffolds, 
+        params.hvgamdb
+    )
+    ch_versions = ch_versions.mix(GAMMA_HV.out.versions)
+    ch_gammaHV = GAMMA_HV.out.gamma
 
-        // Running gamma to identify AR genes in scaffolds
-        GAMMA_AR (
-            ch_filtered_scaffolds, 
-            params.ardb
-        )
-        ch_versions = ch_versions.mix(GAMMA_AR.out.versions)
-        ch_gammaAR = GAMMA_AR.out.gamma
+    // Running gamma to identify AR genes in scaffolds
+    GAMMA_AR (
+        ch_filtered_scaffolds, 
+        params.ardb
+    )
+    ch_versions = ch_versions.mix(GAMMA_AR.out.versions)
+    ch_gammaAR = GAMMA_AR.out.gamma
 
-        GAMMA_PF (
-            ch_filtered_scaffolds, 
-            params.gamdbpf
-        )
-        ch_versions = ch_versions.mix(GAMMA_PF.out.versions)
-        ch_gammaPF = GAMMA_PF.out.gamma
+    GAMMA_PF (
+        ch_filtered_scaffolds, 
+        params.gamdbpf
+    )
+    ch_versions = ch_versions.mix(GAMMA_PF.out.versions)
+    ch_gammaPF = GAMMA_PF.out.gamma
 
-        // Getting Assembly Stats
-        QUAST (
-            ch_filtered_scaffolds
-        )
-        ch_versions = ch_versions.mix(QUAST.out.versions)
-        ch_quastReport = QUAST.out.report_tsv
+    // Getting Assembly Stats
+    QUAST (
+        ch_filtered_scaffolds
+    )
+    ch_versions = ch_versions.mix(QUAST.out.versions)
+    ch_quastReport = QUAST.out.report_tsv
 
-        // get gff and protein files for amrfinder+
-        PROKKA (
-            ch_filtered_scaffolds
-        )
-        ch_versions = ch_versions.mix(PROKKA.out.versions)
-        ch_prokkaFAA = PROKKA.out.faa
-        ch_prokkaGFF = PROKKA.out.gff
+    // get gff and protein files for amrfinder+
+    PROKKA (
+        ch_filtered_scaffolds
+    )
+    ch_versions = ch_versions.mix(PROKKA.out.versions)
+    ch_prokkaFAA = PROKKA.out.faa
+    ch_prokkaGFF = PROKKA.out.gff
 
-        // Creating krona plots and best hit files for weighted assembly
-        // fasta           // channel: tuple (meta) path(read_R1, reads_R2) or tuple (meta) path(scaffolds)
-        // fairy_check     // GET_RAW_STATS.out.outcome or SCAFFOLD_COUNT_CHECK.out.outcome
-        // type            // val: trimd, asmbld or wtasmbld 
-        // qc_stats        //GATHERING_READ_QC_STATS.out.fastp_total_qc
-        // kraken2_db_path
-        KRAKEN2_WTASMBLD (
-            ch_bbmapFiltScaffolds, 
-            ch_filtered_scaffolds, 
-            "wtasmbld", 
-            ch_quastReport, 
-            ch_path_kraken
-        )
-        ch_versions = ch_versions.mix(KRAKEN2_WTASMBLD.out.versions)
-        ch_krakenReport_wtasmbld = KRAKEN2_WTASMBLD.out.report
-        ch_krakenBestHit_wtasmbld = KRAKEN2_WTASMBLD.out.k2_bh_summary
+    // Creating krona plots and best hit files for weighted assembly
+    // fasta           // channel: tuple (meta) path(read_R1, reads_R2) or tuple (meta) path(scaffolds)
+    // fairy_check     // GET_RAW_STATS.out.outcome or SCAFFOLD_COUNT_CHECK.out.outcome
+    // type            // val: trimd, asmbld or wtasmbld 
+    // qc_stats        //GATHERING_READ_QC_STATS.out.fastp_total_qc
+    // kraken2_db_path
+    KRAKEN2_WTASMBLD (
+        ch_bbmapFiltScaffolds, 
+        ch_filtered_scaffolds, 
+        "wtasmbld", 
+        ch_quastReport, 
+        ch_path_kraken
+    )
+    ch_versions = ch_versions.mix(KRAKEN2_WTASMBLD.out.versions)
+    ch_krakenReport_wtasmbld = KRAKEN2_WTASMBLD.out.report
+    ch_krakenBestHit_wtasmbld = KRAKEN2_WTASMBLD.out.k2_bh_summary
+
+    // Running Mash distance to get top 20 matches for fastANI to speed things up
+    mash_dist_ch = ch_filtered_scaffolds.combine(ch_path_mash)
+    MASH_DIST (
+        mash_dist_ch
+    )
+    ch_versions = ch_versions.mix(MASH_DIST.out.versions)
+    ch_mashDist = MASH_DIST.out.dist
         
-        // // Running Mash distance to get top 20 matches for fastANI to speed things up
-        mash_dist_ch = ch_filtered_scaffolds.combine(ch_path_mash)
-        MASH_DIST (
-            mash_dist_ch
-        )
-        ch_versions = ch_versions.mix(MASH_DIST.out.versions)
-        ch_mashDist = MASH_DIST.out.dist
+    // Combining mash dist with filtered scaffolds and the outcome of the scaffolds count check based on meta.id
+    // pull out any single:true
+    cleaned_ch = ch_mashDist.map { meta, file1 ->
+        def cleaned_meta = meta.findAll { it.key != 'single_end' }  // Remove 'single_end'
+        return [cleaned_meta, file1]
+    }
+    top_mash_hits_ch=cleaned_ch.join(ch_bbmapFiltScaffolds)
+
+    // Generate file with list of paths of top taxa for fastANI
+    DETERMINE_TOP_MASH_HITS (
+        top_mash_hits_ch
+    )
+    ch_versions = ch_versions.mix(DETERMINE_TOP_MASH_HITS.out.versions)
+    mash_topList_ch = DETERMINE_TOP_MASH_HITS.out.top_taxa_list
+    mash_refDir_ch = DETERMINE_TOP_MASH_HITS.out.reference_dir
+
+    // Combining filtered scaffolds with the top taxa list based on meta.id
+    top_taxa_list_ch = ch_bbmapFiltScaffolds.map{meta, filtered_scaffolds -> [[id:meta.id], filtered_scaffolds]}\
+        .join(mash_topList_ch.map{              meta, top_taxa_list      -> [[id:meta.id], top_taxa_list ]}, by: [0])\
+        .join(mash_refDir_ch.map{              meta, reference_dir      -> [[id:meta.id], reference_dir ]}, by: [0])
+
+    // Getting species ID
+    FASTANI (
+        top_taxa_list_ch
+    )
+    ch_versions = ch_versions.mix(FASTANI.out.versions)
+    ch_fastaniAni = FASTANI.out.ani
+
+    // Reformat ANI headers
+    FORMAT_ANI (
+        ch_fastaniAni
+    )
+    ch_versions = ch_versions.mix(FORMAT_ANI.out.versions)
+    ch_aniBestHit = FORMAT_ANI.out.ani_best_hit
+
+    // Combining weighted kraken report with the FastANI hit based on meta.id
+    best_hit_ch = ch_krakenBestHit_wtasmbld.map{    meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary]}\
+        .join(ch_aniBestHit.map{                    meta, ani_best_hit  -> [[id:meta.id], ani_best_hit ]},  by: [0])\
+        .join(ch_krakenBestHit.map{                 meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary ]}, by: [0])
+
+    // Getting ID from either FastANI or if fails, from Kraken2
+    DETERMINE_TAXA_ID (
+        best_hit_ch, 
+        params.nodes, 
+        params.names
+    )
+    ch_versions = ch_versions.mix(DETERMINE_TAXA_ID.out.versions)
+    ch_taxaID = DETERMINE_TAXA_ID.out.taxonomy
+
+    // Perform MLST steps on isolates (with srst2 on internal samples)
+    // ch_bbmapFiltScaffolds    // channel: tuple val(meta), path(assembly): BBMAP_REFORMAT.out.filtered_scaffolds
+    // ch_scaffoldOutcome       // SCAFFOLD_COUNT_CHECK.out.outcome
+    // ch_trmdReads             // channel: tuple val(meta), path(reads), path(paired_reads): FASTP_TRIMD.out.reads.map
+    // ch_taxaID                // channel: tuple val(meta), path(taxonomy): DETERMINE_TAXA_ID.out.taxonomy
+    // ch_path_mlst             // MLST DB to use with torstens MLST program
+    DO_MLST (
+        ch_bbmapFiltScaffolds, \
+        ch_scaffoldOutcome, \
+        ch_trmdReads, \
+        ch_taxaID, \
+        ch_path_mlst
+    )
+    ch_versions = ch_versions.mix(DO_MLST.out.versions)
+    ch_mlstCheck = DO_MLST.out.checked_MLSTs
+
+    // Create file that has the organism name to pass to AMRFinder
+    GET_TAXA_FOR_AMRFINDER (
+        ch_taxaID
+    )
+    ch_versions = ch_versions.mix(GET_TAXA_FOR_AMRFINDER.out.versions)
+    ch_amrfinderTaxa = GET_TAXA_FOR_AMRFINDER.out.amrfinder_taxa
+
+    // Combining taxa and scaffolds to run amrfinder and get the point mutations.
+    amr_channel = ch_bbmapFiltScaffolds.map{            meta, reads             -> [[id:meta.id], reads]}\
+        .join(ch_amrfinderTaxa.splitCsv(strip:true).map{meta, amrfinder_taxa    -> [[id:meta.id], amrfinder_taxa ]}, by: [0])\
+        .join(ch_prokkaFAA.map{                         meta, faa               -> [[id:meta.id], faa ]},            by: [0])\
+        .join(ch_prokkaGFF.map{                         meta, gff               -> [[id:meta.id], gff ]},            by: [0])
+
+    // Run AMRFinder
+    AMRFINDERPLUS_RUN (
+        amr_channel, 
+        params.amrfinder_db
+    )
+    ch_amrfinderReport          = AMRFINDERPLUS_RUN.out.report.map { it[1] }.collect()
+    ch_amrfinderMutationReport  = AMRFINDERPLUS_RUN.out.mutation_report
+    ch_versions                 = ch_versions.mix(AMRFINDERPLUS_RUN.out.versions)
         
-        // Combining mash dist with filtered scaffolds and the outcome of the scaffolds count check based on meta.id
-        top_mash_hits_ch=ch_mashDist.join(ch_bbmapFiltScaffolds)
+    // Combining determined taxa with the assembly stats based on meta.id
+    assembly_ratios_ch = ch_taxaID.map{meta, taxonomy   -> [[id:meta.id], taxonomy]}\
+        .join(ch_quastReport.map{                         meta, report_tsv -> [[id:meta.id], report_tsv]}, by: [0])
 
-        // // Generate file with list of paths of top taxa for fastANI
-        DETERMINE_TOP_MASH_HITS (
-            top_mash_hits_ch
-        )
-        ch_versions = ch_versions.mix(DETERMINE_TOP_MASH_HITS.out.versions)
-        mash_topList_ch = DETERMINE_TOP_MASH_HITS.out.top_taxa_list
-        mash_refDir_ch = DETERMINE_TOP_MASH_HITS.out.reference_dir
+    // Calculating the assembly ratio and gather GC% stats
+    CALCULATE_ASSEMBLY_RATIO (
+        assembly_ratios_ch, 
+        params.ncbi_assembly_stats
+    )
+    ch_versions = ch_versions.mix(CALCULATE_ASSEMBLY_RATIO.out.versions)
+    ch_assembledRatio = CALCULATE_ASSEMBLY_RATIO.out.ratio
+    ch_assembledGC = CALCULATE_ASSEMBLY_RATIO.out.gc_content
 
-        // Combining filtered scaffolds with the top taxa list based on meta.id
-        top_taxa_list_ch = ch_bbmapFiltScaffolds.map{meta, filtered_scaffolds -> [[id:meta.id], filtered_scaffolds]}\
-            .join(mash_topList_ch.map{              meta, top_taxa_list      -> [[id:meta.id], top_taxa_list ]}, by: [0])\
-            .join(mash_refDir_ch.map{              meta, reference_dir      -> [[id:meta.id], reference_dir ]}, by: [0])
+    // Prepare all the samples for the stats report
+    empty_results = ch_rawStats.map{ it -> create_empty_ch(it) }
+    pipeline_stats_ch = ch_rawStats.map{      meta, ch_rawStats                 -> [[id:meta.id],ch_rawStats]}\
+        .join(ch_fastp_total_qc.map{          meta, ch_fastp_total_qc           -> [[id:meta.id],ch_fastp_total_qc]},           by: [0])\
+        .join(ch_krakenReport.map{            meta, ch_krakenReport             -> [[id:meta.id],ch_krakenReport]},             by: [0])\
+        .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
+        .join(ch_krakenBestHit.map{           meta, ch_krakenBestHit            -> [[id:meta.id],ch_krakenBestHit]},            by: [0])\
+        .join(ch_renamedScaffolds.map{        meta, ch_renamedScaffolds         -> [[id:meta.id],ch_renamedScaffolds]},         by: [0])\
+        .join(ch_bbmapFiltScaffolds.map{      meta, ch_bbmapFiltScaffolds       -> [[id:meta.id],ch_bbmapFiltScaffolds]},       by: [0])\
+        .join(ch_mlstCheck.map{               meta, ch_mlstCheck                -> [[id:meta.id],ch_mlstCheck]},                by: [0])\
+        .join(ch_gammaHV.map{                 meta, ch_gammaHV                  -> [[id:meta.id],ch_gammaHV]},                  by: [0])\
+        .join(ch_gammaAR.map{                 meta, ch_gammaAR                  -> [[id:meta.id],ch_gammaAR]},                  by: [0])\
+        .join(ch_gammaPF.map{                 meta, ch_gammaPF                  -> [[id:meta.id],ch_gammaPF]},                  by: [0])\
+        .join(ch_quastReport.map{             meta, ch_quastReport              -> [[id:meta.id],ch_quastReport]},              by: [0])\
+        .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
+        .join(ch_krakenReport_wtasmbld.map{   meta, ch_krakenReport_wtasmbld    -> [[id:meta.id],ch_krakenReport_wtasmbld]},    by: [0])\
+        .join(ch_krakenBestHit_wtasmbld.map{  meta, ch_krakenBestHit_wtasmbld   -> [[id:meta.id],ch_krakenBestHit_wtasmbld]},   by: [0])\
+        .join(ch_taxaID.map{                  meta, ch_taxaID                   -> [[id:meta.id],ch_taxaID]},                   by: [0])\
+        .join(ch_aniBestHit.map{              meta, ch_aniBestHit               -> [[id:meta.id],ch_aniBestHit]},               by: [0])\
+        .join(ch_assembledRatio.map{          meta, ch_assembledRatio           -> [[id:meta.id],ch_assembledRatio]},           by: [0])\
+        .join(ch_amrfinderMutationReport.map{ meta, ch_amrfinderMutationReport  -> [[id:meta.id],ch_amrfinderMutationReport]},  by: [0])\
+        .join(ch_assembledGC.map{             meta, ch_assembledGC              -> [[id:meta.id],ch_assembledGC]},              by: [0])
 
-        // Getting species ID
-        FASTANI (
-            top_taxa_list_ch
-        )
-        ch_versions = ch_versions.mix(FASTANI.out.versions)
-        ch_fastaniAni = FASTANI.out.ani
+    // Generate the stats report
+    GENERATE_PIPELINE_STATS (
+        pipeline_stats_ch, 
+        params.coverage
+    )
+    ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS.out.versions)
+    ch_pipeStats = GENERATE_PIPELINE_STATS.out.pipeline_stats
 
-        // Reformat ANI headers
-        FORMAT_ANI (
-            ch_fastaniAni
-        )
-        ch_versions = ch_versions.mix(FORMAT_ANI.out.versions)
-        ch_aniBestHit = FORMAT_ANI.out.ani_best_hit
-
-        // Combining weighted kraken report with the FastANI hit based on meta.id
-        best_hit_ch = ch_krakenBestHit_wtasmbld.map{    meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary]}\
-            .join(ch_aniBestHit.map{                    meta, ani_best_hit  -> [[id:meta.id], ani_best_hit ]},  by: [0])\
-            .join(ch_krakenBestHit.map{                 meta, k2_bh_summary -> [[id:meta.id], k2_bh_summary ]}, by: [0])
-
-        // Getting ID from either FastANI or if fails, from Kraken2
-        DETERMINE_TAXA_ID (
-            best_hit_ch, 
-            params.nodes, 
-            params.names
-        )
-        ch_versions = ch_versions.mix(DETERMINE_TAXA_ID.out.versions)
-        ch_taxaID = DETERMINE_TAXA_ID.out.taxonomy
-
-        // Perform MLST steps on isolates (with srst2 on internal samples)
-        // ch_bbmapFiltScaffolds    // channel: tuple val(meta), path(assembly): BBMAP_REFORMAT.out.filtered_scaffolds
-        // ch_scaffoldOutcome       // SCAFFOLD_COUNT_CHECK.out.outcome
-        // ch_trmdReads             // channel: tuple val(meta), path(reads), path(paired_reads): FASTP_TRIMD.out.reads.map
-        // ch_taxaID                // channel: tuple val(meta), path(taxonomy): DETERMINE_TAXA_ID.out.taxonomy
-        // ch_path_mlst             // MLST DB to use with torstens MLST program
-        DO_MLST (
-            ch_bbmapFiltScaffolds, \
-            ch_scaffoldOutcome, \
-            ch_trmdReads, \
-            ch_taxaID, \
-            ch_path_mlst
-        )
-        ch_versions = ch_versions.mix(DO_MLST.out.versions)
-        ch_mlstCheck = DO_MLST.out.checked_MLSTs
-
-        // Create file that has the organism name to pass to AMRFinder
-        GET_TAXA_FOR_AMRFINDER (
-            ch_taxaID
-        )
-        ch_versions = ch_versions.mix(GET_TAXA_FOR_AMRFINDER.out.versions)
-        ch_amrfinderTaxa = GET_TAXA_FOR_AMRFINDER.out.amrfinder_taxa
-
-        // Combining taxa and scaffolds to run amrfinder and get the point mutations.
-        amr_channel = ch_bbmapFiltScaffolds.map{            meta, reads             -> [[id:meta.id], reads]}\
-            .join(ch_amrfinderTaxa.splitCsv(strip:true).map{meta, amrfinder_taxa    -> [[id:meta.id], amrfinder_taxa ]}, by: [0])\
-            .join(ch_prokkaFAA.map{                         meta, faa               -> [[id:meta.id], faa ]},            by: [0])\
-            .join(ch_prokkaGFF.map{                         meta, gff               -> [[id:meta.id], gff ]},            by: [0])
-
-        // Run AMRFinder
-        AMRFINDERPLUS_RUN (
-            amr_channel, 
-            params.amrfinder_db
-        )
-        ch_amrfinderReport          = AMRFINDERPLUS_RUN.out.report.map { it[1] }.collect()
-        ch_amrfinderMutationReport  = AMRFINDERPLUS_RUN.out.mutation_report
-        ch_versions                 = ch_versions.mix(AMRFINDERPLUS_RUN.out.versions)
+    // Combining output based on meta.id to create summary by sample -- is this verbose, ugly and annoying? yes, if anyone has a slicker way to do this we welcome the input.
+    line_summary_ch = ch_fastp_total_qc.map{            meta, fastp_total_qc  -> [[id:meta.id], fastp_total_qc]}\
+        .join(ch_mlstCheck.map{                         meta, checked_MLSTs   -> [[id:meta.id], checked_MLSTs]},   by: [0])\
+        .join(ch_gammaHV.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
+        .join(ch_gammaAR.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
+        .join(ch_gammaPF.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
+        .join(ch_quastReport.map{                       meta, report_tsv      -> [[id:meta.id], report_tsv]},      by: [0])\
+        .join(ch_assembledRatio.map{                    meta, ratio           -> [[id:meta.id], ratio]},           by: [0])\
+        .join(ch_pipeStats.map{                         meta, pipeline_stats  -> [[id:meta.id], pipeline_stats]},  by: [0])\
+        .join(ch_taxaID.map{                            meta, taxonomy        -> [[id:meta.id], taxonomy]},        by: [0])\
+        .join(ch_krakenBestHit.map{                     meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
+        .join(ch_amrfinderMutationReport.map{           meta, report          -> [[id:meta.id], report]},          by: [0])\
+        .join(ch_aniBestHit.map{                        meta, ani_best_hit    -> [[id:meta.id], ani_best_hit]},    by: [0])
         
-        // Combining determined taxa with the assembly stats based on meta.id
-        assembly_ratios_ch = ch_taxaID.map{meta, taxonomy   -> [[id:meta.id], taxonomy]}\
-            .join(ch_quastReport.map{                         meta, report_tsv -> [[id:meta.id], report_tsv]}, by: [0])
-
-        // Calculating the assembly ratio and gather GC% stats
-        CALCULATE_ASSEMBLY_RATIO (
-            assembly_ratios_ch, 
-            params.ncbi_assembly_stats
-        )
-        ch_versions = ch_versions.mix(CALCULATE_ASSEMBLY_RATIO.out.versions)
-        ch_assembledRatio = CALCULATE_ASSEMBLY_RATIO.out.ratio
-        ch_assembledGC = CALCULATE_ASSEMBLY_RATIO.out.gc_content
-
-        // Prepare all the samples for the stats report
-        empty_results = ch_rawStats.map{ it -> create_empty_ch(it) }
-        pipeline_stats_ch = ch_rawStats.map{      meta, ch_rawStats                 -> [[id:meta.id],ch_rawStats]}\
-            .join(ch_fastp_total_qc.map{          meta, ch_fastp_total_qc           -> [[id:meta.id],ch_fastp_total_qc]},           by: [0])\
-            .join(ch_krakenReport.map{            meta, ch_krakenReport             -> [[id:meta.id],ch_krakenReport]},             by: [0])\
-            .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
-            .join(ch_krakenBestHit.map{           meta, ch_krakenBestHit            -> [[id:meta.id],ch_krakenBestHit]},            by: [0])\
-            .join(ch_renamedScaffolds.map{        meta, ch_renamedScaffolds         -> [[id:meta.id],ch_renamedScaffolds]},         by: [0])\
-            .join(ch_bbmapFiltScaffolds.map{      meta, ch_bbmapFiltScaffolds       -> [[id:meta.id],ch_bbmapFiltScaffolds]},       by: [0])\
-            .join(ch_mlstCheck.map{               meta, ch_mlstCheck                -> [[id:meta.id],ch_mlstCheck]},                by: [0])\
-            .join(ch_gammaHV.map{                 meta, ch_gammaHV                  -> [[id:meta.id],ch_gammaHV]},                  by: [0])\
-            .join(ch_gammaAR.map{                 meta, ch_gammaAR                  -> [[id:meta.id],ch_gammaAR]},                  by: [0])\
-            .join(ch_gammaPF.map{                 meta, ch_gammaPF                  -> [[id:meta.id],ch_gammaPF]},                  by: [0])\
-            .join(ch_quastReport.map{             meta, ch_quastReport              -> [[id:meta.id],ch_quastReport]},              by: [0])\
-            .join(empty_results.map{              meta, empty_results               -> [[id:meta.id],empty_results]},               by: [0])\
-            .join(ch_krakenReport_wtasmbld.map{   meta, ch_krakenReport_wtasmbld    -> [[id:meta.id],ch_krakenReport_wtasmbld]},    by: [0])\
-            .join(ch_krakenBestHit_wtasmbld.map{  meta, ch_krakenBestHit_wtasmbld   -> [[id:meta.id],ch_krakenBestHit_wtasmbld]},   by: [0])\
-            .join(ch_taxaID.map{                  meta, ch_taxaID                   -> [[id:meta.id],ch_taxaID]},                   by: [0])\
-            .join(ch_aniBestHit.map{              meta, ch_aniBestHit               -> [[id:meta.id],ch_aniBestHit]},               by: [0])\
-            .join(ch_assembledRatio.map{          meta, ch_assembledRatio           -> [[id:meta.id],ch_assembledRatio]},           by: [0])\
-            .join(ch_amrfinderMutationReport.map{ meta, ch_amrfinderMutationReport  -> [[id:meta.id],ch_amrfinderMutationReport]},  by: [0])\
-            .join(ch_assembledGC.map{             meta, ch_assembledGC              -> [[id:meta.id],ch_assembledGC]},              by: [0])
-
-        // Generate the stats report
-        GENERATE_PIPELINE_STATS (
-            pipeline_stats_ch, 
-            params.coverage
-        )
-        ch_versions = ch_versions.mix(GENERATE_PIPELINE_STATS.out.versions)
-        ch_pipeStats = GENERATE_PIPELINE_STATS.out.pipeline_stats
-
-        // Combining output based on meta.id to create summary by sample -- is this verbose, ugly and annoying? yes, if anyone has a slicker way to do this we welcome the input.
-        line_summary_ch = ch_fastp_total_qc.map{            meta, fastp_total_qc  -> [[id:meta.id], fastp_total_qc]}\
-            .join(ch_mlstCheck.map{                         meta, checked_MLSTs   -> [[id:meta.id], checked_MLSTs]},   by: [0])\
-            .join(ch_gammaHV.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
-            .join(ch_gammaAR.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
-            .join(ch_gammaPF.map{                           meta, gamma           -> [[id:meta.id], gamma]},           by: [0])\
-            .join(ch_quastReport.map{                       meta, report_tsv      -> [[id:meta.id], report_tsv]},      by: [0])\
-            .join(ch_assembledRatio.map{                    meta, ratio           -> [[id:meta.id], ratio]},           by: [0])\
-            .join(ch_pipeStats.map{                         meta, pipeline_stats  -> [[id:meta.id], pipeline_stats]},  by: [0])\
-            .join(ch_taxaID.map{                            meta, taxonomy        -> [[id:meta.id], taxonomy]},        by: [0])\
-            .join(ch_krakenBestHit.map{                     meta, k2_bh_summary   -> [[id:meta.id], k2_bh_summary]},   by: [0])\
-            .join(ch_amrfinderMutationReport.map{           meta, report          -> [[id:meta.id], report]},          by: [0])\
-            .join(ch_aniBestHit.map{                        meta, ani_best_hit    -> [[id:meta.id], ani_best_hit]},    by: [0])
-
-        // Generate summary per sample that passed SPAdes
-        CREATE_PHOENIX_SUMMARY_LINE (
-            line_summary_ch
-        )
-        ch_versions = ch_versions.mix(CREATE_PHOENIX_SUMMARY_LINE.out.versions)
-        ch_line_summary = CREATE_PHOENIX_SUMMARY_LINE.out.line_summary
-
-        // Combining sample summaries into final report
-        all_summaries_ch=ch_line_summary.collect()
-        CREATE_PHOENIX_SUMMARY (
-            all_summaries_ch, 
-            params.run_busco
-        )
-        ch_versions = ch_versions.mix(CREATE_PHOENIX_SUMMARY.out.versions)
-        final_phoenix_summary = CREATE_PHOENIX_SUMMARY.out.summary_report
-
-        // Post processing
-        //// Gather needed files
-        all_fastp_files     = ch_fastp_total_qc.map { it[1] }  // Extract just the file path
-        all_pipeStats_files = ch_pipeStats.map { it[1] }  // Extract just the file path
-        all_files_ch        = all_fastp_files.concat(all_pipeStats_files).collect()
-
-        // Run post processing
-        POST_PROCESS(
-            all_files_ch,
-            final_phoenix_summary,
-            params.core_functions_script,
-            ch_labResults
-        )
-        ch_pipe_results = POST_PROCESS.out.pipeline_results
-        ch_quality_results = POST_PROCESS.out.quality_results
-        ch_versions = ch_versions.mix(POST_PROCESS.out.versions)
-
+    // Generate summary per sample that passed SPAdes
+    CREATE_PHOENIX_SUMMARY_LINE (
+        line_summary_ch
+    )
+    ch_versions = ch_versions.mix(CREATE_PHOENIX_SUMMARY_LINE.out.versions)
+    ch_line_summary = CREATE_PHOENIX_SUMMARY_LINE.out.line_summary
     
     emit:
-        scaffolds         = ch_bbmapFiltScaffolds
-        trimmed_reads     = ch_trmdFailed
-        mlst              = ch_mlstCheck
-        geneFiles         = ch_amrfinderReport
-        gamma_ar          = ch_gammaAR
-        phx_summary       = ch_line_summary
-        pipe_results      = ch_pipe_results
-        quality_results   = ch_quality_results
-        versions          = ch_versions
+        fastp_total_qc       = ch_fastp_total_qc
+        geneFiles            = ch_amrfinderReport
+        line_summary         = ch_line_summary
+        pipeStats            = ch_pipeStats
+        versions             = ch_versions
 }
 
 /*

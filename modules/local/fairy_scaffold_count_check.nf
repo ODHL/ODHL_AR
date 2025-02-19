@@ -41,7 +41,6 @@ process SCAFFOLD_COUNT_CHECK {
     
     # checking that the output contains scaffolds still:
     if grep "Output:                 	0 reads (0.00%) 	0 bases (0.00%)" ${bbmap_log}; then
-        echo "HERE"
         #Check if the file exists already (it won't with -entry SCAFFOLDS)
         if [ -f ${fairy_read_count_outcome} ]; then
             # replace end of line with actual error message
