@@ -10,9 +10,9 @@ output:
       align_right}
     logo: "odh_logo_240128.png"
 params:
-  configFILE: "config_ar_report.yaml"
-  sampletable: "final_report.csv"
-  arpredictions: "ar_predictions.tsv"
+  configFILE: "REP_CONFIG"
+  sampletable: "REP_SAMPLETABLE"
+  arpredictions: "REP_PREDICT"
   projectname: "REP_PROJID"
   date: "REP_DATE"
   testing: "N"

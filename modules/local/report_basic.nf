@@ -6,9 +6,9 @@ process REPORT_BASIC {
 
   input:
     path(updated_basicRMD)
-    val(project_id)
+    val(projectID)
     path(final_report)
-    path(ch_predictions)
+    path(predictions)
     path(config_arReport)
     path(odhl_logo)
 
@@ -17,6 +17,6 @@ process REPORT_BASIC {
 
   script:
   """
-  Rscript -e 'rmarkdown::render("${updated_basicRMD}", output_file="${project_id}_basicReport.html", output_dir = getwd())'
+  Rscript -e 'rmarkdown::render("${updated_basicRMD}", output_file="${projectID}_basicReport.html", output_dir = getwd())'
   """
 }
