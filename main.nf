@@ -16,7 +16,8 @@
 */
 // Main workflows
 include { arANALYZER        } from './workflows/aranalyzer'
-include { postANALYZER      } from './workflows/postanalyzer'
+include { arFORMATTER       } from './workflows/arformatter'
+include { arREPORTER        } from './workflows/arreporter'
 
 // include { dbSUBMISSION  } from './workflows/db_submissions'
 
@@ -95,87 +96,63 @@ workflow arANALYSIS {
             ch_reads,
             ch_versions
         )
+
+    // arANALYZER.out.line_summary.view()
+    // arANALYZER.out.fastp_total_qc.view()
+    // arANALYZER.out.pipeStats.view()
+    // arANALYZER.out.geneFiles.view()
+    // arANALYZER.out.versions.view()
+
     
     emit:
-        ch_line_summary     = arANALYZER.out.line_summary
-        ch_fastp_total_qc   = arANALYZER.out.fastp_total_qc
-        ch_pipeStats        = arANALYZER.out.pipeStats
-        ch_all_geneFiles    = arANALYZER.out.geneFiles
+        ch_line_summary     = arANALYZER.out.line_summary // arFORMAT
+        ch_fastp_total_qc   = arANALYZER.out.fastp_total_qc // arFORMAT
+        ch_pipeStats        = arANALYZER.out.pipeStats //arFORMAT
+        ch_all_geneFiles    = arANALYZER.out.geneFiles // arREPORT
         ch_versions         = arANALYZER.out.versions
 }
 
-// WORKFLOW: Runs postAnalysis workflow, per project
-workflow postANALYSIS{
-    take:
-        ch_line_summary
-        ch_fastp_total_qc
-        ch_pipeStats
-        ch_versions
+// WORKFLOW: Runs arFORMATTER workflow, per project
+workflow arFORMAT {
+    ch_versions                 = Channel.empty()
 
     main:
+        // Define analysis_outdir
+        def analysis_outdir = file(params.analysis_outdir)
+        if (!analysis_outdir.exists()) {
+            exit 1, "Error: Provided analysis_outdir '${params.analysis_outdir}' does not exist!"
+        }
+
         // Post Analysis
-        postANALYZER(
-            ch_line_summary,
-            ch_fastp_total_qc,
-            ch_pipeStats,
+        arFORMATTER(
+            analysis_outdir,
             ch_versions
         )
-
 }
-    //     ch_quality_results  = arANALYZER.out.quality_results
-    //     ch_versions         = arANALYZER.out.versions
-    //     ch_analyzer_results = postANALYZER.out.pipe_results
 
-    //     // Submit to WGS DB, Prepare for NCBI DB
-    //     dbSUBMISSION(
-    //         ch_analyzer_results,
-    //         ch_quality_results,
-    //         ch_versions
-    //     )
-    //     ch_pipelineResults = dbSUBMISSION.out.pipelineResults
+workflow arREPORT {
+    ch_versions                 = Channel.empty()
 
-    //     // POST NCBI
-    //     if (runNcbiProcess) {
-    //         NCBI_POST(
-    //             project_id,
-    //             ch_ncbi_db,
-    //             ch_wgs_db,
-    //             ch_quality_results
-    //         )
-    //         ch_ncbi_output = NCBI_POST.out.ncbi_output
-    //     }
+    main:
+        // Define format_outdir
+        def format_outdir = file(params.format_outdir)
+        if (!format_outdir.exists()) {
+            exit 1, "Error: Provided format_outdir '${params.format_outdir}' does not exist!"
+        }
 
-    //     // Basic Report
-    //     if (runBasicReport){
-    //         REPORT_PREP(
-    //             ch_core_functions_script,
-    //             ch_basic_RMD,
-    //             project_id,
-    //             ch_analyzer_results,
-    //             ch_ncbi_db,
-    //             ch_wgs_db,
-    //             ch_all_geneFiles
-    //         )
-    //         ch_final_report        = REPORT_PREP.out.CSVreport
-    //         ch_updated_basicRMD    = REPORT_PREP.out.RMD
-    //         ch_predictions         = REPORT_PREP.out.predictions
+        // Define analysis_outdir
+        def analysis_outdir = file(params.analysis_outdir)
+        if (!analysis_outdir.exists()) {
+            exit 1, "Error: Provided analysis_outdir '${params.analysis_outdir}' does not exist!"
+        }
 
-    //         REPORT_BASIC(
-    //             ch_updated_basicRMD,
-    //             project_id,
-    //             ch_final_report,
-    //             ch_predictions,
-    //             ch_config_arReport,
-    //             ch_odhl_logo
-    //         )
-    //         ch_basicHTMLreport    = REPORT_BASIC.out.HTMLreport
-    //         ch_basicHTMLreport.view()
-    //     }
-
-    // emit:
-    //     pipelineResults     = ch_pipelineResults
-    //     quality_results     = ch_quality_results
-    //     basicHTMLreport     = ch_basicHTMLreport
+        // Post Analysis
+        arREPORTER(
+            format_outdir,
+            analysis_outdir,
+            ch_versions
+        )
+}
 
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
