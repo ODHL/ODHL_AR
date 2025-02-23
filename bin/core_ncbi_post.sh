@@ -4,10 +4,9 @@
 # ARGS
 #########################################################
 project_id=$1
-ncbiDB_file=$2
-wgsDB_file=$3
-sample_list=$4
-
+idDB_file=$2
+ncbi_pre_file=$3
+ncbi_output_file=$4
 ##########################################################
 # Eval, source
 #########################################################
@@ -18,17 +17,21 @@ sample_list=$4
 #set year
 year="2025"
 
-# set date
-date_stamp=`date '+%Y_%m_%d'`
-
 ##########################################################
 # Set files, dir
 #########################################################
 # prep files
-ncbi_results="srr_db_results.csv"
+id_dir=$(dirname "$idDB_file")
+id_log="id_db_log.txt"
 
-# pull the ncbi dir 
-cachedDB_file=${today}_srr_db.csv
+# create cache dir
+today=`date +%Y%m%d`
+cachedDB_file=${today}_id_db.csv
+cp $idDB_file $cachedDB_file
+
+# update the ID results file to include SRR
+ncbi_post_file="id_db_results_postNCBI.csv"
+cp $ncbi_pre_file $ncbi_post_file
 
 #########################################################
 # Controls
@@ -37,40 +40,43 @@ cachedDB_file=${today}_srr_db.csv
 #########################################################
 # Code
 #########################################################
-# NCBI Post
-echo "sampleID,WGSID,SRRID,SAMID,PROJECTID" > $ncbi_results
+# process samples by wgsID
+awk -F"," '{print $3}' $ncbi_pre_file > passed_samples
+IFS=$'\n' read -d '' -r -a sample_list < passed_samples
+for wgsID in "${sample_list[@]}"; do
+    echo "--sample: $wgsID" >> $id_log
 
-# copy the original file to the backup
-cp $ncbiDB_file srr_db_backup.csv
+	# check if the sample was uploaded
+	check=`cat $ncbi_output_file | grep $wgsID`
 
-# copythe original file to the cache
-cp $ncbiDB_file $cachedDB_file
+	# update ID's with NCBI information
+	if [[ $check == "" ]]; then
+		echo "----sample not uploaded" >> $id_log
+	else
+		# grab sample_id, srrID, samID
+		sample_id=`cat $ncbi_post_file | grep $wgsID | awk -F"," '{print $2}'` 
+		srrID=`cat $ncbi_output_file | grep $wgsID | awk -F"\t" '{print $1}'` 
+		samID=`cat $ncbi_output_file | grep $wgsID | awk -F"\t" '{print $5}'`
 
-# process samples
-counter=1
-sample_list=($(cut -d',' -f1 $sample_list))
-for sample_id in "${sample_list[@]}"; do
-	echo "sample: $sample_id"
-	# if [[ $sample_id == *ODHL_sample* ]]; then
-	# 	echo "$sample_id,${year}ZN-999$counter,SRAfakeID$counter,SAMNfakeID$counter,$project_id" >> $ncbi_results
-	# 	counter=$((counter+1))
-	# else
-	# 	# add the file info to the master database
-		wgsID=`cat $wgsDB_file | grep $sample_id | awk -F"," '{print $1}'`
-		sraID=`cat $cachedDB_file | grep $wgsID | awk -F"," '{print $3}'`
-		samID=`cat $cachedDB_file | grep $wgsID | awk -F"," '{print $4}'`
+		# update post file
+		sed -i "s/$wgsID,,,/$wgsID,$srrID,$samID,/g" $ncbi_post_file
 
-		if [[ $sraID == "" ]]; then 
-			sraID=`cat $ncbiDB_file | grep $wgsID | awk '{print $1}'`
-			samID=`cat $ncbiDB_file | grep $wgsID | awk '{print $3}'`
+		# Add data to the cacheDB, as long as it's not a test sample
+		if [[ $sample_id == "ODHL_sample4" ]]; then
+			echo "test passes: $project_id,$sample_id,$wgsID,$srrID,$samID,$today" >> $id_db_log
 		else
-			# add to final output
-			echo "$sample_id,$wgsID,$sraID,$samID,$project_id" >> $cachedDB_file
+			echo "----$sample_id added to cache" >> $id_db_log
+			echo "" >> $cachedDB_file
+			echo "$project_id,$sample_id,$wgsID,$srrID,$samID,$today" >> $cachedDB_file
 		fi
-		# add the information to the project specific file
-		echo "$sample_id,$wgsID,$sraID,$samID,$project_id" >> $ncbi_results
-	# fi
+	fi
 done
-    
-# cp the cache to the master file
-cat $cachedDB_file | sort | uniq > $ncbiDB_file
+
+# copy the master to backup  
+cat $idDB_file | uniq > $id_dir/id_db_backup.csv
+
+# copy the new file to master
+cat $cachedDB_file | uniq > $id_dir/id_db_master.csv
+
+# copy the cached file to the directory
+cp $cachedDB_file $id_dir/cached

@@ -6,16 +6,17 @@ process NCBI_PREP {
     val(project_id)
     path(metadata_file)
     path(ncbiConfig)
-    path(ncbiDB_file)
-    path(sample_list)
+    path(idDB_file)
     path(pipeline_results)
-    path(wgsDB_results)
+    path(idDB_results)
+    path(all_fastq_files)
 
     output:
     path('ncbi_sample_list.csv')               , emit: ncbi_sample_list
     path("versions.yml")                       , emit: versions
-    path("batched_ncbi_att*")
-    path("batched_ncbi_meta*")
+    path("batched_ncbi_att*")                  , emit: ncbi_att
+    path("batched_ncbi_meta*")                 , emit: ncbi_meta
+    path("id_db_results_preNCBI.csv")          , emit: ncbi_pre_file
 
     script:
     """
@@ -24,11 +25,10 @@ process NCBI_PREP {
         $project_id \
         $metadata_file \
         $ncbiConfig \
-        $ncbiDB_file \
-        $sample_list \
+        $idDB_file \
         $pipeline_results \
-        $wgsDB_results
-    
+        $idDB_results
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
     post_process_tag: "v1.0"

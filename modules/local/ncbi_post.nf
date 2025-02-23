@@ -3,21 +3,21 @@ process NCBI_POST {
 
     input:
     val(project_id)
-    path(ncbiDB_file)
-    path(wgsDB_file)
-    path(sample_list)
+    path(idDB_file)
+    path(ncbi_pre_file)
+    path(ncbi_output_file)
 
     output:
-    path('srr_db_results.csv')               , emit: ncbi_output
-    path("versions.yml")                     , emit: versions
+    path("versions.yml")                        , emit: versions
+    path("id_db_results_postNCBI.csv")           , emit: ncbi_post_file
 
     script:
     """
     core_ncbi_post.sh \
         $project_id \
-        $ncbiDB_file \
-        $wgsDB_file \
-        $sample_list
+        $idDB_file \
+        $ncbi_pre_file \
+        $ncbi_output_file
 
     cat <<-END_VERSIONS >> versions.yml
     "${task.process}":
