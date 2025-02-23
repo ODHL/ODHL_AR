@@ -5,9 +5,10 @@ process ID_DB {
     path(core_functions_script)
     path(quality_results)
     path(idDB_file)
+    val(projectID)
 
     output:
-    path('wgs_db_results.csv')               , emit: wgs_results
+    path('id_db_results.csv')               , emit: wgs_results
     path("versions.yml")                     , emit: versions
 
     script:
@@ -17,7 +18,8 @@ process ID_DB {
     core_ids.sh \
         $core_functions_script \
         sample_list.csv \
-        $idDB_file
+        $idDB_file \
+        $projectID
         
     cat <<-END_VERSIONS >> versions.yml
     "${task.process}":
