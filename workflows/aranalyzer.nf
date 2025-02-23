@@ -291,9 +291,16 @@ workflow arANALYZER {
         ch_scaffoldOutcome = SCAFFOLD_COUNT_CHECK.out.outcome
         ch_scaffoldSummary = SCAFFOLD_COUNT_CHECK.out.summary_line
 
+    // Resume's can cause single:true to join in the channel
+    // This ensure it stays the same str regardless of re-runs
+    cleaned_ch_scaffoldOutcome = ch_scaffoldOutcome.map { meta, file ->
+        def cleaned_meta = meta.findAll { it.key != 'single_end' }  // Remove 'single_end' key
+        return [cleaned_meta, file]  // Return cleaned metadata with file
+    }
+
     // Join with ch_scaffoldOutcome using ID
     ch_filtered_scaffolds = ch_bbmapFiltScaffolds.join(
-        ch_scaffoldOutcome, by: 0
+        cleaned_ch_scaffoldOutcome, by: 0
         ).filter { entry -> 
             def scaffold_file = file(entry[2])  // Ensure it's treated as a file
             scaffold_file.exists() && scaffold_file.text.readLines().any { it.contains('PASSED: More than 0 scaffolds') }
