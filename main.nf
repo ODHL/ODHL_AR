@@ -18,7 +18,7 @@
 include { arANALYZER        } from './workflows/aranalyzer'
 include { arFORMATTER       } from './workflows/arformatter'
 include { arREPORTER        } from './workflows/arreporter'
-
+include { outbreakANALYZER  } from './workflows/outbreakanalyzer'
 // include { dbSUBMISSION  } from './workflows/db_submissions'
 
 // Subworkflows
@@ -112,7 +112,9 @@ workflow arANALYSIS {
         ch_versions         = arANALYZER.out.versions
 }
 
+//
 // WORKFLOW: Runs arFORMATTER workflow, per project
+//
 workflow arFORMAT {
     ch_versions                 = Channel.empty()
 
@@ -130,6 +132,9 @@ workflow arFORMAT {
         )
 }
 
+//
+// WORKFLOW: Runs arREPORT workflow, per project
+//
 workflow arREPORT {
     ch_versions                 = Channel.empty()
 
@@ -151,6 +156,43 @@ workflow arREPORT {
             format_outdir,
             analysis_outdir,
             ch_versions
+        )
+}
+
+//
+// WORKFLOW: Runs outbreakANALYSIS workflow, per sample
+//
+workflow outbreakANALYSIS {
+    // set test samplesheet
+    samplesheet                 = file(params.input_gff)
+    ch_versions                 = Channel.empty()
+
+    main:
+        // Define format_outdir
+        def format_outdir = file(params.format_outdir)
+        if (!format_outdir.exists()) {
+            exit 1, "Error: Provided format_outdir '${params.format_outdir}' does not exist!"
+        }
+
+        // Define analysis_outdir
+        def analysis_outdir = file(params.analysis_outdir)
+        if (!analysis_outdir.exists()) {
+            exit 1, "Error: Provided analysis_outdir '${params.analysis_outdir}' does not exist!"
+        }
+
+        // Define reference dir
+        def reference_outdir = file(params.outbreak_reference_dir)
+        if (!reference_outdir.exists()) {
+            exit 1, "Error: Provided reference_outdir '${params.reference_outdir}' does not exist!"
+        }
+
+        // Post Analysis
+        outbreakANALYZER(
+            format_outdir,
+            analysis_outdir,
+            reference_outdir,
+            ch_versions,
+            samplesheet
         )
 }
 

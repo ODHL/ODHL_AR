@@ -20,7 +20,7 @@ helpFunction()
 {
    echo ""
    echo "Usage: $1 -e [REQUIRED] entry"
-   echo -e "\t-e options: arBASESPACE,arANALYSIS,arFORMAT,arREPORT,arOUTBREAK"
+   echo -e "\t-e options: arBASESPACE,arANALYSIS,arFORMAT,arREPORT,outbreakANALYSIS"
    echo "Usage: $2 -i [REQUIRED] project_id"
    echo -e "\t-i project id"
    echo "Usage: $3 -n [OPTIONAL] nextflowParams"
@@ -32,7 +32,9 @@ helpFunction()
    echo "Usage: $6 -m [OPTIONAL] metadata_NCBI"
    echo -e "\t-m path to the labResults file"
    echo "Usage: $7 -o [OPTIONAL] output_NCBI"
-   echo -e "\t-o path to the labResults file"   
+   echo -e "\t-o path to the labResults file"
+   echo "Usage: $8 -g [OPTIONAL] input_gff"
+   echo -e "\t-g path to the sapmleList to run outbreak analysis"   
    exit 1 # Exit script after printing help
 }
    # echo "Usage: $4 -o [OPTIONAL] outbreakReport"
@@ -109,6 +111,13 @@ if [[ $entry == "arREPORT" ]]; then
    if [ ! -z $output_NCBI ]; then nextflowParams="$nextflowParams --output_NCBI $output_NCBI"; fi 
 fi
 
+# arOUTBREAK settings
+if [[ $entry == "outbreakANALYSIS" ]]; then
+   nextflowParams="$nextflowParams --analysis_outdir $projDir/results/arANALYSIS --format_outdir $projDir/results/arFORMAT"
+
+   # set output_NCBI, if present
+   if [ ! -z $input_gff ]; then nextflowParams="$nextflowParams --input_gff $input_gff"; fi 
+fi
 
 
 #########################################################################################

@@ -44,8 +44,8 @@ for sample_id in "${sample_list[@]}"; do
 	num_of_fails=`cat $synopsis | grep -v "completed as FAILED" | grep "FAILED" | wc -l`
 
 	# review lab results
-	labValue=`cat $lab_results | grep $sample_id | cut -f2 -d"," | sort | awk '{print $1}'`
-	pipelineValue=`cat $rawPipeline_results | grep $sample_id | awk -F"\t" '{print $9}' | sort | awk '{print $1}'`
+	labValue=`cat $lab_results | grep $sample_id | cut -f2 -d","`
+	pipelineValue=`cat $rawPipeline_results | grep $sample_id | awk -F"\t" '{print $9}' | awk -F" " '{print $1}'`
 	pipelineStatus=`cat $rawPipeline_results | grep $sample_id | awk -F"\t" '{print $2}'`
 		
 	# message if the lab didnt give results
@@ -65,14 +65,16 @@ for sample_id in "${sample_list[@]}"; do
 		mv tmp $rawPipeline_results
 
 		echo "$sample_id,FAIL,WARNING($num_of_warnings)" >> $quality_results
-	else
-		if [[ $pipelineStatus == "PASS" && *"$pipelineValue" != *"$labValue"*  ]]; then
+	fi
+
+	if [[ $pipelineStatus == "PASS" ]]; then
+		if [[ "$pipelineValue" == "$labValue"  ]]; then
+			echo "$sample_id,PASS,NA" >> $quality_results
+		else
 			reason="Lab Discordance"
 			cat $rawPipeline_results | awk -F"\t" -v i=$SID -v reason="${reason}" 'BEGIN {OFS = FS} NR==i {$2="FAIL"; $24=reason}1' > tmp
 			mv tmp $rawPipeline_results
 			echo "$sample_id,FAIL,labDiscordance($pipelineValue,$labValue)" >> $quality_results
-		else
-			echo "$sample_id,PASS,NA" >> $quality_results
 		fi
 	fi
 

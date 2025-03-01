@@ -69,7 +69,7 @@ for sample_id in "${sample_list[@]}"; do
     ## pull data from analysis row
     estimated_coverage=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $4}'`
     genome_length=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $5}'`
-    auto_qc_failure_reason=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $24}'`
+    auto_qc_failure_reason=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $24}' | cut -f1 -d";"`
     ## if samples fail due to seq (low reads), adjust
     auto_qc_outcome=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $2}'`
     if [[ $auto_qc_outcome == "" ]]; then auto_qc_outcome="SeqFAIL"; auto_qc_failure_reason="sequencing_failure"; fi

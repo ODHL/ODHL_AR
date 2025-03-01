@@ -43,12 +43,6 @@ cp $idDB_file $cachedDB_file
 # add a new line
 echo "" >> $cachedDB_file
 
-# arbitrary fix
-cat $quality_file > tmp
-sed -i "s/ODHL_sample2,FAIL,SeqFailure/ODHL_sample2,PASS,/g" tmp
-sed -i "s/ODHL_sample4,FAIL,SeqFailure/ODHL_sample4,PASS,/g" tmp
-quality_file="tmp"
-
 # pull sampleIDs for all samples that passed analysis
 cat $quality_file | grep -v "ID" | grep "PASS" | awk -F"," '{print $1}' | uniq > $passed_samples
 IFS=$'\n' read -d '' -r -a passed_list < $passed_samples
