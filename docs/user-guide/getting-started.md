@@ -31,13 +31,14 @@ The pipeline is built using [Nextflow](https://www.nextflow.io), a workflow tool
 Currently, there are several entry points for the AR pipeline:
 
 1. `arBASESPACE`: Downloads files directly from Illumina Basespace.
-2. `arANALYSIS`: Downloads file Illumina Basespace, if needed; performs **quality control, genome assembly, and taxonomic classification**; detects **antimicrobial resistance genes, plasmids, and virulence factors**; performs **generation of unique WGS ID's**; preparaes **NCBI submission**.
-4. `DBProcessing`: Performs **quality control, compiles NCBI ID's into a compiled user file**.
+2. `arANALYSIS`: Downloads file Illumina Basespace, if needed; performs **quality control, genome assembly, and taxonomic classification**; detects **antimicrobial resistance genes, plasmids, and virulence factors**.
+3. `arFORMAT`: Performs **quality control**;  performs **generation of unique WGS ID's**; preparaes **NCBI submission**.
+4. `arREPORT`: Performs **NCBI processing**;  create **AR Basic Report**.
 
 In addition there are several entry points for AR outbreak analysis.
+
 1. `outbreakANALYSIS`: Performs additional analysis for outbreak detection.
 2. `outbreakREPORTING`: Generates reports depending on the type of outbreak analysis required.
-3. `NFCORE_OUTBREAK`: Executes **outbreakANALYSIS** and **outbreakREPORTING** for an second **end-to-end workflow**.
 ---
 
 ## Processes

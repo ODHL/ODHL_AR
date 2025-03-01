@@ -3,7 +3,7 @@
 ## Samplesheet (Required)
 Each project requires an `input` CSV formatted file.
 
-| Sample ID | Read 1 | Read 2 |
+| sample | fastq_1 | fastq_2 |
 |-----------|--------|--------|
 | Sample1   | Sample1_R1.fastq.gz | Sample1_R2.fastq.gz |
 | Sample2   | Sample2_R1.fastq.gz | Sample2_R2.fastq.gz |
@@ -17,7 +17,7 @@ sample2,/path/to/fastq/files/sample2.R1.fastq.gz,/path/to/fastq/files/sample2.R2
 ## labResults (Optional)
 Each project can check laboratory QC with an `labResults` CSV formatted file.
 
-| Sample ID | Results |
+| sample | results |
 |-----------|--------|
 | Sample1   | expectedSpecies |
 | Sample2   | expectedSpecie2 |

@@ -16,7 +16,7 @@ This workflow is developed and maintained by the [`Ohio Department of Health Lab
 ---
 
 ## **Pipeline Workflow**
-The **ODHL_rAcecaR pipeline** consists of the following stages:
+The **ODHL_rAcecaR pipeline** consists of the following components:
 
 ### **1. Read Quality Control (QC)**
 - **Tool:** [`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)  

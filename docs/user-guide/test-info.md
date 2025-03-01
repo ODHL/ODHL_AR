@@ -11,28 +11,29 @@ sample4,sample4.R1.fastq.gz,sample4.R2.fastq.gz
 
 ## Lab Results
 sample,results
-sample,results
-sample1,Providencia
-sample2,Acinetobacter
-sample3,Klebsiella
-sample4,Pseudomonas
+ODHL_sample1,Providencia
+ODHL_sample2,Acinetobacter
+ODHL_sample3,Pseudomonas
+ODHL_sample4,Pseudomonas
 
 ## Expected Results
 ### Sample1
-This sample will fail QC thesholds.
-KRAKEN2_CLASSIFY_WEIGHTED     : FAILED   : Genus-Acinetobacter is under 70% (species-baumannii 66.25%), likely contaminated
-ASSEMBLY_RATIO(SD)            : FAILED   : St. dev. too large - 1.8449x(7.4691-SD) against P.stuartii
-COVERAGE                      : FAILED   : 4.16x coverage based on trimmed reads (Min:30x)
+This ODHL_sample will fail sequencing QC thresholds
+-- COVERAGE                      : FAILED   : 4.16x coverage based on trimmed reads (Min:30x)
+This ODHL_sample will pass lab QC thresholds
 
 ### Sample2
-This sample will pass all QC thresholds.
+This ODHL_sample will pass sequencing QC thresholds
+This ODHL_sample will pass lab QC thresholds
 
 ### Sample3
-This sample will fail QC thresholds.
-The results should be Pseudomonas, but reported as Klebsiella
+This ODHL_sample will fail sequencing QC thresholds
+This ODHL_sample will fail lab QC thresholds
+-- The results should be Acinetobacter, but reported as Pseudomonas
 
 ### Sample4
-This sample will pass all QC thresholdss.
+This ODHL_sample will pass sequencing QC thresholds
+This ODHL_sample will pass lab QC thresholds
 
 # Running pipeline
 To execute with Docker:
@@ -45,7 +46,20 @@ nextflow run main.nf -entry arANALYSIS -profile singularity,test
 ```
 To execute with the provided wrapper:
 ```bash
-bash run_workflow.sh \
-  -e arANALYSIS \
-  -i test
+bash run_workflow.sh -e arANALYSIS -i test
+```
+
+# Running full workflow
+```
+# run arANALYSIS
+bash run_workflow.sh -e arANALYSIS -i test
+
+# run arFORMAT
+bash run_workflow.sh -e arFORMAT -i test
+
+# run arREPORT
+bash run_workflow.sh -e arREPORT -i test
+
+# run outbreakANALYSIS
+bash run_workflow.sh -e outbreakANALYSIS -i test
 ```
