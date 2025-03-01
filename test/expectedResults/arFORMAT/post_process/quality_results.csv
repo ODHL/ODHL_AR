@@ -1,0 +1,4 @@
+ODHL_sample1,FAIL,SeqFailure
+ODHL_sample2,PASS,NA
+ODHL_sample3,FAIL,labDiscordance(Pseudomonas,Acinetobacter)
+ODHL_sample4,PASS,NA
