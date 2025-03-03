@@ -18,9 +18,18 @@ jobs:
         with:
           lfs: true # Ensures LFS files are fetched
 
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull  # Fetch LFS files
+
+      - name: Verify LFS Files
+        run: git lfs ls-files  # Debugging step to verify LFS files are available
+
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
-        run: git lfs checkout
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIG_FILE: mkdocs.yml
