@@ -31,7 +31,8 @@ jobs:
       - name: Build MkDocs Site
         run: |
           pip install mkdocs mkdocs-material
-          mkdocs build
+          pip install mkdocs-git-revision-date-localized-plugin
+          pip install pymdown-extensions  # Ensure emoji support
 
       - name: Prepare Git for LFS Push
         run: |
