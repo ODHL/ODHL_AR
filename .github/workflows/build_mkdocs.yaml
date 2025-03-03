@@ -18,11 +18,9 @@ jobs:
         with:
           lfs: true # Ensures LFS files are fetched
 
-      - name: Checkout LFS objects
-        run: git lfs checkout
-
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
+        run: git lfs checkout
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIG_FILE: mkdocs.yml
