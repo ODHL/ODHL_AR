@@ -23,10 +23,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git-lfs
           git lfs install
-          git lfs pull  # Fetch LFS files
+          git lfs pull
 
       - name: Verify LFS Files
-        run: git lfs ls-files  # Debugging step to verify LFS files are available
+        run: git lfs ls-files  # Debugging step to check if LFS files are present
+
+      - name: Ensure Git LFS is Available for MkDocs
+        run: |
+          git config --global core.autocrlf false
+          git config --global filter.lfs.process "git-lfs filter-process"
+          git config --global filter.lfs.required true
+          git config --global filter.lfs.smudge "git-lfs smudge --skip"
+          git config --global filter.lfs.clean "git-lfs clean"
 
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
