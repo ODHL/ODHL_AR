@@ -10,16 +10,15 @@ output:
       align_right}
     logo: "odh_logo_240128.png"
 params:
-  configFILE: "config_ar_report.yaml"
-  sampletable: "final_report.csv"
-  snpmatrix: "snp_distance_matrix.tsv"
-  tree: "core_genome.tree"
-  cgstats: "core_genome_statistics.txt"
-  arpredictions: "ar_predictions.tsv"
-  metadata: "metadata.csv"
+  configFILE: "REP_CONFIG"
+  sampletable: "REP_SAMPLETABLE"
+  snpmatrix: "REP_SNPMATRIX"
+  tree: "REP_IQTREE"
+  cgstats: "REP_CGSTATS"
+  arpredictions: "REP_PREDICT"
+  metadata: "REP_META"
   testing: "N"
   obid: "REP_OB"
-  projectname: "REP_PROJID"
   date: "REP_DATE"
 editor_options: 
   chunk_output_type: console
@@ -58,7 +57,7 @@ reporttype="Outbreak"
 
 #position args
 if (params$testing=="N"){
-  projectname=params$projectname
+  obid=params$obid
   configFILE=params$configFILE
   date=params$date
   sampletable=params$sampletable
@@ -69,7 +68,7 @@ if (params$testing=="N"){
   metadata=params$metadata
   obid=params$obid
 } else {
-  projectname="OH-M6588-231201"
+  obid="OH-M6588-231201"
   date="12/18/23"
   sampletable="final_report.csv"
   snpmatrix="snp_distance_matrix.tsv"
@@ -88,7 +87,7 @@ config <- read_yaml(configFILE)
 subHeaderText = paste0(config$sub.title, ": ", reporttype)
 
 ## get header table
-headerDF <- data.frame(date=date,ob=obid, project=projectname,name=username)
+headerDF <- data.frame(date=date,ob=obid, project=obid,name=username)
 
 ## get summary text
 summaryTEXT <- config$summary.paragraph
