@@ -39,7 +39,7 @@ heatmap.outbreak.text: |
 tree.text: |
   Phylogenetic trees visualize the relatedness and genetic diversity of samples. Closely related samples will generally share a recent common ancestor. Three different types of trees are presented.
 ar_gene_summary.text: |
-  This report shows a summary of all species and antimicrobial resistance genes of samples which passed QC thresholds detected using the ODH [AR pipeline](https://github.com/ODHL/AR_Workflow).
+  This report shows a summary of all antimicrobial resistance genes detected using the ODH [AR pipeline](https://github.com/ODHL/AR_Workflow).
 
 # tree rooting method, must be one of the following: 
 # 'midpoint', 'unrooted', or a sample id
