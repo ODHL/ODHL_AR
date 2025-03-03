@@ -31,8 +31,9 @@ jobs:
 
       - name: Build MkDocs Site
         run: |
-          mkdocs build
-          ls -l site/ || echo "MkDocs site/ directory not found"
+          pip install mkdocs mkdocs-material
+          pip install mkdocs-git-revision-date-localized-plugin
+          pip install pymdown-extensions  # Ensure emoji support
 
       - name: Deploy Docs with MkDocs
         run: |
