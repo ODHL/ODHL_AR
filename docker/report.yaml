@@ -1,4 +1,4 @@
-name: basic_report
+name: report
 channels:
   - conda-forge
   - bioconda
@@ -10,6 +10,7 @@ dependencies:
   - r-dt
   - r-flexdashboard
   - r-ggplot2
+  - r-ggpubr
   - r-kableextra
   - r-pander
   - r-plotly
@@ -18,6 +19,9 @@ dependencies:
   - r-heatmaply
   - r-phytools
   - r-yaml
+  - r-ape
+  - r-crosstalk
+  - r-htmlwidgets
+  - r-lubridate
+  - r-rcolorbrewer
   - bioconductor-ggtree=3.10.0
-  - r-ggpubr
-
