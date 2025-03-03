@@ -44,6 +44,11 @@ sample2	person2	person2	4/26/1953	2	LEBANON	IL	62254	ST. CLAIR	1	SWAB_WOUND			IL
 sample3	person3	person3	3/17/1957	1	BELLEVUE	OH	44811	SANDUSKY	1	URINE_CATHETER (STRAIGHT)		CLEVELAND CLINIC	OH	44195	HEALTH_ASSOCIATES	OH	44106	PSEUDOMONAS	AERUGINOSA	8/11/2024	8/16/2024
 ```
 
+## metadata_Outbreak (Optional)
+Each project can upload to NCBI with an `outbreak_metadata` tab formatted file.
+
+
+
 # Reference Databases
 ## Kraken2 Database
 The database file can be taken from [`Ben Langmead's repository`](https://benlangmead.github.io/aws-indexes/k2) which links directly to the database file. It is recommended to use the latest version of the [`8GB database`](https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20240904.tar.gz), and reformat it using the `bin/reformat_kraken.sh` script.
@@ -75,7 +80,7 @@ elif
 fi
 ```
 ## All Other Databases
-All other databases come pre-packaged with the pipeline
+All other databases come pre-packaged with the pipeline:
     
     - REFSEQ_20240124_Bacteria_complete.msh.gz
     - mlst_db_20240124.tar.gz

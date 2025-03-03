@@ -9,22 +9,33 @@ The pipeline is built using [Nextflow](https://www.nextflow.io), a workflow tool
 
 ## Pipeline Summary
 
-1. **Read QC**: [`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/) – Provides quality metrics for raw sequencing reads.
-2. **Trimming reads**: [`Fastp`](https://github.com/OpenGene/fastp) – Trims low-quality reads and adapter sequences.
-3. **Taxonomic Classification**: [`Kraken2`](https://ccb.jhu.edu/software/kraken2/) – Identifies bacterial species present in the sequencing data.
-4. **Genome Assembly**: [`SPAdes`](https://cab.spbu.ru/software/spades/) – Performs de novo genome assembly.
-5. **Quality Assessment of Assembly**: [`QUAST`](http://quast.sourceforge.net/) – Evaluates assembly quality.
-6. **Plasmid Identification**: [`PlasmidFinder`](https://cge.food.dtu.dk/services/PlasmidFinder/) – Detects plasmids in the assembled genome.
-7. **MLST Typing**: [`MLST`](https://github.com/tseemann/mlst) – Determines **Multilocus Sequence Typing (MLST)** for bacterial isolates.
-8. **AMR Gene Detection**: [`AMRFinderPlus`](https://www.ncbi.nlm.nih.gov/pathogens/antimicrobial-resistance/AMRFinder/) – Identifies antimicrobial resistance genes.
-9. **Virulence Gene Detection**: [`Gamma`](https://github.com/) – Predicts bacterial virulence factors.
-10. **Genome Annotation**: [`Prokka`](https://github.com/tseemann/prokka) – Annotates genomic features.
-11. **Whole-Genome Comparisons**:
-    - [`Mash`](https://github.com/marbl/Mash) – Estimates genome distances for clustering.
-    - [`FastANI`](https://github.com/ParBLiSS/FastANI) – Calculates Average Nucleotide Identity (ANI) for species identification.
-12. **Final Report**: [`MultiQC`](http://multiqc.info/) – Summarizes results across all samples in a single interactive report.
+The pipeline includes several process, including the following:
 
----
+### **Quality Control & Preprocessing**  
+- **Read QC**: [`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/) – Provides quality metrics for raw sequencing reads.  
+- **Trimming Reads**: [`Fastp`](https://github.com/OpenGene/fastp) – Trims low-quality reads and adapter sequences.  
+- **Taxonomic Classification**: [`Kraken2`](https://ccb.jhu.edu/software/kraken2/) – Identifies bacterial species present in the sequencing data.  
+
+### **Genome Assembly & Assessment**  
+- **Genome Assembly**: [`SPAdes`](https://cab.spbu.ru/software/spades/) – Performs de novo genome assembly.  
+- **Quality Assessment of Assembly**: [`QUAST`](http://quast.sourceforge.net/) – Evaluates assembly quality.  
+- **Plasmid Identification**: [`PlasmidFinder`](https://cge.food.dtu.dk/services/PlasmidFinder/) – Detects plasmids in the assembled genome.  
+
+### **Genotyping & Comparative Genomics**  
+- **MLST Typing**: [`MLST`](https://github.com/tseemann/mlst) – Determines **Multilocus Sequence Typing (MLST)** for bacterial isolates.  
+- **Whole-Genome Comparisons**:  
+  - [`Mash`](https://github.com/marbl/Mash) – Estimates genome distances for clustering.  
+  - [`FastANI`](https://github.com/ParBLiSS/FastANI) – Calculates **Average Nucleotide Identity (ANI)** for species identification.  
+
+### **Antimicrobial Resistance & Virulence Detection**  
+- **AMR Gene Detection**: [`AMRFinderPlus`](https://www.ncbi.nlm.nih.gov/pathogens/antimicrobial-resistance/AMRFinder/) – Identifies antimicrobial resistance genes.  
+- **Virulence Gene Detection**: [`Gamma`](https://github.com/) – Predicts bacterial virulence factors.  
+
+### **Genome Annotation**  
+- **Prokka**: [`Prokka`](https://github.com/tseemann/prokka) – Annotates bacterial genomes.  
+
+### **Final Reports**  
+- **MultiQC**: [`MultiQC`](http://multiqc.info/) – Summarizes results across all samples in a single interactive report.  
 
 ## Entry Points
 
@@ -39,35 +50,6 @@ In addition there are several entry points for AR outbreak analysis.
 
 1. `outbreakANALYSIS`: Performs additional analysis for outbreak detection.
 2. `outbreakREPORTING`: Generates reports depending on the type of outbreak analysis required.
----
-
-## Processes
-
-### **Quality Control & Preprocessing**
-- **FastQC**: Provides sequencing quality metrics.
-- **Fastp**: Trims low-quality reads and removes adapters.
-- **Kraken2**: Classifies bacterial species from sequencing data.
-
-### **Genome Assembly & Assessment**
-- **SPAdes**: Performs de novo genome assembly.
-- **QUAST**: Evaluates assembly quality.
-- **PlasmidFinder**: Identifies plasmid sequences in assembled genomes.
-
-### **Genotyping & Comparative Genomics**
-- **MLST**: Identifies bacterial strain types.
-- **Mash**: Estimates genetic distances between isolates.
-- **FastANI**: Computes **Average Nucleotide Identity (ANI)** for species classification.
-
-### **Antimicrobial Resistance & Virulence Detection**
-- **AMRFinderPlus**: Detects AMR genes in bacterial genomes.
-- **Gamma**: Predicts virulence factors from genomic data.
-
-### **Genome Annotation**
-- **Prokka**: Annotates bacterial genomes.
-
-### **Final Reports**
-- **MultiQC**: Compiles a summary of all quality control and analysis results.
-
 ---
 
 ## [Dependencies](#dependencies)
