@@ -14,3 +14,4 @@ assets/databases/*/*master*
 assets/databases/*/*backup*
 assets/databases/*/cached/*
 test/internal/
+assets/databases/outbreak/internal/
