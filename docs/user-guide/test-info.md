@@ -63,3 +63,19 @@ bash run_workflow.sh -e arREPORT -i test
 # run outbreakANALYSIS
 bash run_workflow.sh -e outbreakANALYSIS -i test
 ```
+
+# Expected results
+Expected results are provided for each of the workflows. 
+- **arANALYSIS**:  
+  - **`create_phoenix_summary_line/`**: Contains summary line reports for individual samples (`ODHL_sample1_summaryline.tsv`, `ODHL_sample2_summaryline.tsv`, etc.), summarizing key results per sample.  
+
+- **arFORMAT**:  
+  - **`post_process/`**: Stores processed pipeline results, including:
+    - `processed_pipeline_results.csv` – Consolidated results from the pipeline.  
+    - `quality_results.csv` – Quality assessment results of the analysis.  
+
+- **arREPORT**:  
+  - **`report_basic/`**: Contains the **basic analysis report** (`test_basicReport.html`), providing a summarized overview of the pipeline outputs.  
+
+- **outbreakANALYSIS**:  
+  - **`test_outbreakReport.html`**: The **final outbreak analysis report**, summarizing key findings from the outbreak investigation.  

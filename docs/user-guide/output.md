@@ -45,3 +45,9 @@
 - **report_basic_prep**: Prepares data and formats content for inclusion in the final **report_basic**, ensuring consistency and clarity.  
 
 ## outbreakANALYSIS Output
+
+- **cfsan**: Contains core SNP analysis outputs, including `snp_distance_matrix.tsv` for SNP-based distance measurements and `snpma.fasta` representing SNP multiple alignments.  
+- **iqtree2**: Stores the core genome phylogenetic tree (`core_genome.tree`), which provides insights into evolutionary relationships among the analyzed samples.  
+- **report_outbreak**: Contains the final outbreak analysis report (`test_outbreakReport.html`), summarizing key findings.
+- **report_outbreak_prep**: Stores the RMarkdown script (`test_outbreakReport.Rmd`) used to generate the outbreak report.
+- **roary**: Includes core genome alignment and gene presence-absence data:
