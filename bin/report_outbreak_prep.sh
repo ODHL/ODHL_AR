@@ -3,7 +3,7 @@
 #########################################################
 # ARGS
 #########################################################
-config_arOUTBREAK=$1
+configFILE=$1
 analyzer_results=$2
 CFSAN_snpMatrix=$3
 IQTREE_genomeTree=$4

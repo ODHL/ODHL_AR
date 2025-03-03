@@ -25,27 +25,25 @@ editor_options:
 ---
 
 ```{r libs, echo=FALSE,include=FALSE,warning=FALSE,message=FALSE}
-library(rmarkdown)
+library(ape)
 library(argparser)
-library(yaml)
-library(ape)
+library(crosstalk)
+library(DT)
+library(flexdashboard)
 library(ggplot2)
-library(plotly)
-library(pander)
-library(kableExtra)
-library(ape)
+library(ggpubr)
 library(ggtree)
 library(heatmaply)
-library(phytools)
-library(DT)
-library(RColorBrewer)
-library(ggpubr)
-library(flexdashboard)
-library(crosstalk)
-require(phytools)
-require(rgl)
-require(htmlwidgets)
+library(htmlwidgets)
+library(kableExtra)
 library(lubridate)
+library(pander)
+library(phytools)
+library(plotly)
+library(RColorBrewer)
+library(rgl)
+library(rmarkdown)
+library(yaml)
 knitr::opts_chunk$set(echo = FALSE,warning=FALSE,message=FALSE)
 options(rgl.useNULL = TRUE) # Suppress the separate window.
 '%ni%' <- function(x,y)!('%in%'(x,y))
@@ -57,9 +55,7 @@ reporttype="Outbreak"
 
 #position args
 if (params$testing=="N"){
-  obid=params$obid
   configFILE=params$configFILE
-  date=params$date
   sampletable=params$sampletable
   snpmatrix=params$snpmatrix
   tree=params$tree
@@ -67,6 +63,7 @@ if (params$testing=="N"){
   arpredictions=params$arpredictions
   metadata=params$metadata
   obid=params$obid
+  date=params$date
 } else {
   obid="OH-M6588-231201"
   date="12/18/23"
@@ -100,6 +97,9 @@ methodsTEXT <- config$methods.text
 
 ## get reference
 referenceTEXT <- config$reference.text
+
+# get root method
+rootMethod = config$root.method
 ```
 
 ```{r read, echo=FALSE}
@@ -120,7 +120,6 @@ sampleDF$collect_date=sapply(strsplit(as.character(sampleDF$collect_date), "/"),
 # replace NAs
 sampleDF$srr_id <- ifelse(sampleDF$srr_id == "NO_ID", sampleDF$specimen_id,
                           sampleDF$srr_id)
-sampleDF$healthcare_origin[is.na(sampleDF$healthcare_origin)] <- "REF"
 
 # get heatmap
 snpData <- read.csv2(snpmatrix,sep='\t',check.names = F,row.names = 1)
@@ -150,25 +149,30 @@ tax_nums=generate_ids(c("specimen_id","species","sequence_classification",
                         "mlst_1","gamma_beta_lactam_resistance_genes"))
 qc_nums=generate_ids(c("specimen_id","estimated_coverage","genome_length",
                         "auto_qc_failure_reason"))
-ob_samples=subset(sampleDF,healthcare_origin!="REF")
-sample_meta=SharedData$new(ob_samples)
+sample_meta=SharedData$new(sampleDF)
 ```
 
 ```{r summarytext, echo=FALSE}
 # generate summary test for outupt
-pass_n=nrow(subset(ob_samples, auto_qc_outcome=="PASS"))
-failed_n=nrow(subset(ob_samples, auto_qc_outcome!="PASS"))
-failed_samples=subset(ob_samples, auto_qc_outcome!="PASS")$specimen_id
-ref_samples=nrow(sampleDF)-nrow(ob_samples)
-summaryTEXT=paste0("There were ", nrow(ob_samples)," samples analyzed and ",
+pass_n=nrow(subset(sampleDF, auto_qc_outcome=="PASS"))
+failed_n=nrow(subset(sampleDF, auto_qc_outcome!="PASS"))
+failed_samples=subset(sampleDF, auto_qc_outcome!="PASS")$specimen_id
+ref_samples=nrow(snpData)-nrow(sampleDF)+1
+
+# create text
+summaryTEXT=paste0("There were ", nrow(sampleDF)," samples analyzed and ",
                    pass_n, " samples passed quality control thresholds, while ",
-                   length(failed_samples)," failed. An additional ",ref_samples,
-                   " observational samples were used for reference.")
+                   length(failed_samples)," failed.")
+## expand failing information
 if(failed_n>0){
   summaryTEXT=paste0(summaryTEXT,
                      " Failing samples included: ",
                      paste(failed_samples,collapse=" | "),".")
 }
+# Add reference information
+summaryTEXT=paste0(summaryTEXT,
+                  " An additional ",ref_samples," samples were used for reference (ODHL_ref, REF).")
+
 ```
 
 Information {data-orientation=columns data-icon="fa-info-circle"}
@@ -245,7 +249,7 @@ if(exists('treepath') & !is.null(ape::read.tree(treepath))){
   # rename the labels
   count=1
   for (id in tree$tip.label){
-    if (id %in% ob_samples$specimen_id){
+    if (id %in% sampleDF$specimen_id){
         next
     } else{
       tree$tip.label=gsub(id,paste0("ref",count),tree$tip.label)
@@ -259,12 +263,12 @@ if(exists('treepath') & !is.null(ape::read.tree(treepath))){
   }
 
   # set the root method
-  if(config$root.method == 'midpoint'){
+  if(rootMethod == 'midpoint'){
     tree <- midpoint.root(tree)
-  } else if(config$root.method == 'unrooted'){
+  } else if(rootMethod == 'unrooted'){
     tree <- tree
   } else {
-    node <- match(config$root.method, tree$tip.label)
+    node <- match(rootMethod, tree$tip.label)
     if(is.na(node)){
       message('Root sample ID not found')
       quit(save="no", status=1)
