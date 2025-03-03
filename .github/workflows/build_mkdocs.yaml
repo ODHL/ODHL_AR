@@ -16,31 +16,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true # Fetch LFS files
+          lfs: true  # Ensure LFS files are fetched
 
-      - name: Install Git LFS
+      - name: Install MkDocs and Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git-lfs
           git lfs install
-          git lfs pull  # Ensure all LFS files are downloaded
+          git lfs pull  # Fetch all LFS files
+          pip install mkdocs mkdocs-material mkdocs-git-revision-date-localized-plugin pymdown-extensions
 
       - name: Verify LFS Files
-        run: git lfs ls-files  # Debugging step to confirm LFS files exist
+        run: git lfs ls-files  # Debugging step to ensure LFS files are pulled
 
       - name: Build MkDocs Site
         run: |
-          pip install mkdocs mkdocs-material
-          pip install mkdocs-git-revision-date-localized-plugin
-          pip install pymdown-extensions  # Ensure emoji support
+          mkdocs build
+          ls -l site/ || echo "MkDocs site/ directory not found"
 
-      - name: Prepare Git for LFS Push
+      - name: Deploy Docs with MkDocs
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "GitHub Actions"
-
-      - name: Deploy Docs to GitHub Pages with LFS Support
-        run: |
+          if [ ! -d "site" ]; then
+            echo "Error: MkDocs did not generate the site directory!"
+            exit 1
+          fi
           git checkout --orphan gh-pages
           git rm -rf .
           mv site/* .
