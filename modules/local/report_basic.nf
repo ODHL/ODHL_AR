@@ -2,7 +2,7 @@ process REPORT_BASIC {
     tag "REPORT_BASIC"
     label 'process_high'
 
-    container 'ghcr.io/slsevilla/basic_report:latest'
+    container 'ghcr.io/slsevilla/report:latest'
 
   input:
     path(updated_basicRMD)
