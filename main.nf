@@ -19,7 +19,6 @@ include { arANALYZER        } from './workflows/aranalyzer'
 include { arFORMATTER       } from './workflows/arformatter'
 include { arREPORTER        } from './workflows/arreporter'
 include { outbreakANALYZER  } from './workflows/outbreakanalyzer'
-// include { dbSUBMISSION  } from './workflows/db_submissions'
 
 // Subworkflows
 include { CREATE_INPUT_CHANNEL    } from './subworkflows/local/create_input_channel'
@@ -28,9 +27,6 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_odhl
 
 // Modules
 include { BASESPACE                 } from './modules/local/basespace'
-// include { NCBI_POST                 } from './modules/local/ncbi_post'
-// include { REPORT_PREP               } from './modules/local/report_prep'
-// include { REPORT_BASIC              } from './modules/local/report_basic'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -160,7 +156,7 @@ workflow arREPORT {
 }
 
 //
-// WORKFLOW: Runs outbreakANALYSIS workflow, per sample
+// WORKFLOW: Runs outbreakANALYSIS workflow, per project
 //
 workflow outbreakANALYSIS {
     // set test samplesheet
@@ -168,91 +164,33 @@ workflow outbreakANALYSIS {
     ch_versions                 = Channel.empty()
 
     main:
-        // Define format_outdir
-        def format_outdir = file(params.format_outdir)
-        if (!format_outdir.exists()) {
-            exit 1, "Error: Provided format_outdir '${params.format_outdir}' does not exist!"
-        }
-
         // Define analysis_outdir
         def analysis_outdir = file(params.analysis_outdir)
         if (!analysis_outdir.exists()) {
             exit 1, "Error: Provided analysis_outdir '${params.analysis_outdir}' does not exist!"
         }
 
+        // Define report_outdir
+        def report_outdir = file(params.report_outdir)
+        if (!report_outdir.exists()) {
+            exit 1, "Error: Provided report_outdir '${params.report_outdir}' does not exist!"
+        }
+
         // Define reference dir
-        def reference_outdir = file(params.outbreak_reference_dir)
+        def reference_outdir = file(params.reference_outdir)
         if (!reference_outdir.exists()) {
             exit 1, "Error: Provided reference_outdir '${params.reference_outdir}' does not exist!"
         }
 
         // Post Analysis
         outbreakANALYZER(
-            format_outdir,
             analysis_outdir,
             reference_outdir,
+            report_outdir,
             ch_versions,
             samplesheet
         )
 }
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
-// workflow outbreakANALYSIS {
-
-//     // set test samplesheet
-//     samplesheet = file(params.input)
-//     labResults  = file(params.labResults)
-//     ch_versions = Channel.empty()
-
-//     main:
-//         // set download variable
-//         runBASESPACE="TRUE"
-    
-//     //     emit:
-//     //         valid_samplesheet            = BUILD_TREE.out.valid_samplesheet
-//     //         // bams                         = BUILD_TREE.out.bams
-//     //         // distmatrix                   = BUILD_TREE.out.distmatrix
-//     //         // core_stats  = BUILD_TREE.out.core_stats
-//     //         // tree        = BUILD_TREE.out.tree
-//     //         // samestr_db  = BUILD_TREE.out.samestr_db
-// }
-
-// //
-// // WORKFLOW: Run main analysis pipeline depending on type of input
-// //
-// workflow outbreakREPORTING {
-
-//     // set test samplesheet
-//     samplesheet = file(params.input)
-//     labResults  = file(params.labResults)
-//     ch_versions = Channel.empty()
-
-//     main:
-//         // set download variable
-//         runBASESPACE="TRUE"
-    
-//     //     emit:
-// //         report_basic            = CREATE_REPORT.out.report_out
-
-// }
-
-// workflow NFCORE_OUTBREAK {
-
-//     // set test samplesheet
-//     samplesheet = file(params.input)
-//     labResults  = file(params.labResults)
-//     ch_versions = Channel.empty()
-
-//     main:
-//         // TODO 
-//         runBASESPACE="TRUE"
-//         // outbreakANALYSIS()
-
-//         //outbreakREPORTING
-// }
-
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

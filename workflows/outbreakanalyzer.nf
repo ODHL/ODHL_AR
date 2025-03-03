@@ -21,22 +21,24 @@
 */
 projectID                   = params.projectID
 outbreak_species            = params.outbreak_species
+max_samples                 = params.max_samples
+percent_id                  = params.percent_id
 
-
-ch_id_db                    = Channel.fromPath(params.id_db)
-ch_output_NCBI              = Channel.fromPath(params.output_NCBI)
-ch_basic_RMD                = Channel.fromPath(params.basic_RMD)
-ch_odhl_logo                = Channel.fromPath(params.odhl_logo)
+ch_ardb                     = Channel.fromPath(params.ardb)
+ch_snp_config               = Channel.fromPath(params.snp_config)
+ch_outbreak_RMD             = Channel.fromPath(params.outbreak_RMD)
 ch_config_arReport          = Channel.fromPath(params.config_arReport)
+ch_outbreak_metadata        = Channel.fromPath(params.outbreak_metadata)
 /*
 ========================================================================================
     IMPORT LOCAL MODULES
 ========================================================================================
 */
-
-include { NCBI_POST                         } from '../modules/local/ncbi_post'
-include { REPORT_BASIC_PREP                 } from '../modules/local/report_basic_prep'
-include { REPORT_BASIC                      } from '../modules/local/report_basic'
+include { CFSAN                             } from '../modules/local/cfsan'
+include { ROARY                             } from '../modules/local/roary'
+include { IQTREE2                           } from '../modules/local/iqtree2'
+include { REPORT_OUTBREAK_PREP              } from '../modules/local/report_outbreak_prep'
+include { REPORT_OUTBREAK                   } from '../modules/local/report_outbreak'
 /*
 ========================================================================================
     IMPORT LOCAL SUBWORKFLOWS
@@ -62,9 +64,10 @@ include { CREATE_GFF_CHANNEL                } from '../subworkflows/local/create
 */
 workflow outbreakANALYZER {
     take:
-        format_outdir
+        // format_outdir
         analysis_outdir
         reference_outdir
+        report_outdir
         ch_versions
         samplesheet
 
@@ -73,68 +76,129 @@ workflow outbreakANALYZER {
         CREATE_GFF_CHANNEL(
             samplesheet
         )
-        ch_sampleList = CREATE_GFF_CHANNEL.out.sampleList
-        
+        // Extract sample IDs as key-value pairs for joining
+        ch_sampleList = CREATE_GFF_CHANNEL.out.sampleList.map { it.id }
+
+        //////////////////////////////////////////////////////////////////
+        // Handle GFF files
+        //////////////////////////////////////////////////////////////////
+        // Join GFF files with the sample list based on matching sample_id
+        ch_sample_gffs = Channel
+            .fromPath("${analysis_outdir}/prokka/*gff")
+            .map { file -> 
+                def sample_id = file.baseName // Extracts filename without extension
+                return [sample_id, file] // Key-value pair (sample_id, file)
+            }
+            .join(ch_sampleList)
+            .map { sample_id, file -> file } // Keep only the file paths
+            // .collect()
+        // ch_sample_gffs.view()
+
         // Pull all reference files
         all_reference_gff = Channel
-            .fromPath("${reference_outdir}/gff/${outbreak_species}/*gff")
-            .map (file -> file)
-            .collect()
-        all_reference_gff.view()
+            .fromPath("${reference_outdir}/${outbreak_species}/gff/*gff")
+            .map { file -> file } // Keep only the file paths
+            // .collect()
+        // all_reference_gff.view()
 
-        // pull the reference samples - ch_gff_refs
-        // CREATE_REFERENCE_GFF(
-        //     reference_outdir,
-        //     outbreak_species
-        // )
-        //// number of samples - 15 = number of refs
-        //// all live in the params.outbreak_reference_dir
-        //// gffs in /gff and lists in /sampleLists/params.outbreak_species.txt
-        //// remember to lower that
-
-        // merge the two ch_gff_samples and ch_gff_refs ch_gff_files
-
-        // run CFSAN
+        // Collect and take only the first `max_samples` items
+        ch_all_gffs = ch_sample_gffs.concat(all_reference_gff)
+            .collect().map { collectedFiles -> 
+            return collectedFiles.take(max_samples) // Keep only 1:max_samples
+        }
+        // ch_all_gffs.view()
 
         // run ROARY
+        ROARY (
+            ch_all_gffs,
+            percent_id
+        )
+        ch_ROARY_aln                = ROARY.out.aln
+        ch_ROARY_coreGenomeStats    = ROARY.out.core_genome_stats
+        
+        // Generate core genome tree
+        IQTREE2 (
+            ch_ROARY_aln
+        )
+        ch_IQTREE_genomeTree        = IQTREE2.out.genome_tree
 
-        // run tree matrix
 
-        // tbd on outbreak preprocess
+        //////////////////////////////////////////////////////////////////
+        // Handle FASTQ files
+        //////////////////////////////////////////////////////////////////
+        // Join fastq files with the sample list based on matching sample_id
+        ch_sample_fastqs = Channel
+            .fromPath("${analysis_outdir}/bbduk/*fastq.gz")
+            .map { file -> 
+                def sample_id = file.baseName.replaceAll(/_cleaned_[12]\.fastq$/, '') // Extracts core sample ID
+                return [sample_id, file] // Key-value pair (sample_id, file)
+            }
+            .groupTuple() // Groups files by sample_id
+            .join(ch_sampleList)
+            .map { sample_id, file -> file } // Keep only the file paths
+        // ch_sample_fastqs.view()
+
+        // Pull all reference files
+        all_reference_fastqs = Channel
+            .fromPath("${reference_outdir}/${outbreak_species}/bbduk/*fastq.gz")
+            .map { file -> file } // Keep only the file paths
+        // all_reference_fastqs.view()
+
+        // Collect and take only the first `max_samples` items
+        ch_all_fastqs = ch_sample_fastqs.concat(all_reference_fastqs)
+            .collect().map { collectedFiles -> 
+            return collectedFiles.take(max_samples*2) // Keep only 1:max_samples
+        }
+        // ch_all_fastqs.view()
+
+        // run CFSAN
+        CFSAN (
+            ch_all_fastqs,
+            ch_ardb,
+            ch_snp_config
+        )
+        ch_CFSAN_snpMatrix = CFSAN.out.distmatrix
+
+        //////////////////////////////////////////////////////////////////
+        // Report
+        //////////////////////////////////////////////////////////////////
+        ch_analyzer_results = Channel
+            .fromPath("${report_outdir}/report_basic_prep/*final_report.csv")
+            .map (file -> file)
+            .collect()
+
+        ch_ar_predictions = Channel
+            .fromPath("${report_outdir}/report_basic_prep/*ar_predictions.tsv")
+            .map (file -> file)
+            .collect()
+
+        // run outbreakPREP
+        REPORT_OUTBREAK_PREP(
+            ch_config_arReport,
+            ch_analyzer_results,
+            ch_CFSAN_snpMatrix,
+            ch_IQTREE_genomeTree,
+            ch_ROARY_coreGenomeStats,
+            ch_ar_predictions,
+            ch_outbreak_metadata,
+            projectID,
+            ch_outbreak_RMD
+        )
+        ch_updated_outbreakRMD = REPORT_OUTBREAK_PREP.out.projecOutbreakRMD
 
         // run outbreakREPORT
-
-        // INPUT_CHECK (
-        //     ch_input,
-        // )
-        
-        // // create gff channel
-        // // remove samples that are *.filtered.scaffolds.fa.gz
-        // ch_gff = INPUT_CHECK.out.reads.flatten().filter( it -> (it =~ 'gff') )
-        // // ch_gff.view()
-
-        // ch_gff_files = Channel
-        //     .fromPath("${analysis_outdir}/prokka/*gff")
-        //     .map (file -> file)
-        //     .collect()
-
-        // // Generate SNP dist matrix
-        // CFSAN (
-        //     params.treedir,
-        //     params.ardb,
-        //     Channel.from(ch_snp_config)
-        // )
-
-        // // Generate core genome statistics
-        // ROARY (
-        //     ch_gff.collect(),
-        //     params.percent_id
-        // )
-
-        // // Generate core genome tree
-        // TREE (
-        //     ROARY.out.aln
-        // )
+        REPORT_OUTBREAK(
+            ch_config_arReport,
+            ch_analyzer_results,
+            ch_CFSAN_snpMatrix,
+            ch_IQTREE_genomeTree,
+            ch_ROARY_coreGenomeStats,
+            ch_ar_predictions,
+            ch_outbreak_metadata,
+            projectID,
+            ch_updated_outbreakRMD
+        )
+        ch_output=REPORT_OUTBREAK.out.report
 }
 
 /*

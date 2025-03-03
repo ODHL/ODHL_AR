@@ -113,7 +113,7 @@ fi
 
 # arOUTBREAK settings
 if [[ $entry == "outbreakANALYSIS" ]]; then
-   nextflowParams="$nextflowParams --analysis_outdir $projDir/results/arANALYSIS --format_outdir $projDir/results/arFORMAT"
+   nextflowParams="$nextflowParams --analysis_outdir $projDir/results/arANALYSIS --report_outdir $projDir/results/arREPORT"
 
    # set output_NCBI, if present
    if [ ! -z $input_gff ]; then nextflowParams="$nextflowParams --input_gff $input_gff"; fi 
