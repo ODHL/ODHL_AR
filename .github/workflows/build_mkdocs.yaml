@@ -13,33 +13,36 @@ jobs:
     name: Deploy docs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true # Ensures LFS files are fetched
+          lfs: true # Fetch LFS files
 
       - name: Install Git LFS
         run: |
           sudo apt-get update
           sudo apt-get install -y git-lfs
           git lfs install
-          git lfs pull
+          git lfs pull  # Ensure all LFS files are downloaded
 
       - name: Verify LFS Files
-        run: git lfs ls-files  # Debugging step to check if LFS files are present
+        run: git lfs ls-files  # Debugging step to confirm LFS files exist
 
-      - name: Ensure Git LFS is Available for MkDocs
+      - name: Build MkDocs Site
         run: |
-          git config --global core.autocrlf false
-          git config --global filter.lfs.process "git-lfs filter-process"
-          git config --global filter.lfs.required true
-          git config --global filter.lfs.smudge "git-lfs smudge --skip"
-          git config --global filter.lfs.clean "git-lfs clean"
+          pip install mkdocs mkdocs-material
+          mkdocs build
 
-      - name: Deploy docs
-        uses: mhausenblas/mkdocs-deploy-gh-pages@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONFIG_FILE: mkdocs.yml
-          EXTRA_PACKAGES: build-base
-          REQUIREMENTS: docs/requirements.txt
+      - name: Prepare Git for LFS Push
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Deploy Docs to GitHub Pages with LFS Support
+        run: |
+          git checkout --orphan gh-pages
+          git rm -rf .
+          mv site/* .
+          git add .
+          git commit -m "Deploy MkDocs site"
+          git push --force "https://${{ secrets.GITHUB_TOKEN }}@github.com/ODHL/ODHL_AR.git" gh-pages
