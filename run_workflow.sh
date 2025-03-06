@@ -75,7 +75,7 @@ project_name=$(echo $project_id | cut -f1 -d "_" | cut -f1 -d " ")
 today_date=$(date '+%Y-%m-%d'); today_date=`echo $today_date | sed "s/-//g"`
 
 # set proj dir, output dir, tmp dir
-projDir="/home/ubuntu/output/$project_name"
+projDir="$HOME/$project_name"
 outDir="$projDir/results/$entry"
 tmpDir="$projDir/tmp"
 if [[ ! -d $tmpDir ]]; then mkdir -p $tmpDir; fi
