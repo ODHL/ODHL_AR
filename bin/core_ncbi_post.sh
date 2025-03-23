@@ -43,6 +43,7 @@ cp $ncbi_pre_file $ncbi_post_file
 # process samples by wgsID
 awk -F"," '{print $3}' $ncbi_pre_file > passed_samples
 IFS=$'\n' read -d '' -r -a sample_list < passed_samples
+echo "" >> $cachedDB_file
 for wgsID in "${sample_list[@]}"; do
     echo "--sample: $wgsID" >> $id_log
 
@@ -66,7 +67,6 @@ for wgsID in "${sample_list[@]}"; do
 			echo "test passes: $project_id,$sample_id,$wgsID,$srrID,$samID,$today" >> $id_db_log
 		else
 			echo "----$sample_id added to cache" >> $id_db_log
-			echo "" >> $cachedDB_file
 			echo "$project_id,$sample_id,$wgsID,$srrID,$samID,$today" >> $cachedDB_file
 		fi
 	fi

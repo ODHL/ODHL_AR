@@ -101,10 +101,9 @@ echo -e "${chunk1}\t${chunk2}\t${chunk3}" > $ncbi_metadata
 echo "** UPLOAD **" >> $id_log
 awk -F"," '{print $1}' $ncbi_upload > passed_samples
 IFS=$'\n' read -d '' -r -a sample_list < passed_samples
-for sample_line in ${sample_list[@]}; do
-	# separate the sample_line
-	sampleID=`echo $sample_line | cut -f1 -d","`
-	wgsID=`echo $sample_line | cut -f2 -d","`
+for sampleID in "${sample_list[@]}"; do
+	# pull wgsID
+	wgsID=`cat $ncbiDB_results | grep $sampleID | cut -f3 -d","`
 	echo "--sample upload: $sampleID" >> $id_log
 
 	# determine the sample line in the pipeline results
@@ -113,14 +112,16 @@ for sample_line in ${sample_list[@]}; do
 	# pull organism from results	
 	organism=`cat $pipeline_results | awk -F"\t" -v i=$SID 'FNR == i {print $9}' | sed "s/([0-9]*.[0-9]*%)//g" | sed "s/  //g"`
 
+	# metadata file does not include projectID as part of the name
+	clean_sample_id=`echo "$sampleID" | sed "s/"-${project_id}"//g"` 
+
 	# grab metadata line
-	meta=`cat $metadata_file | grep "$sampleID" | cut -f1 -d","`
+	meta=`cat $metadata_file | grep "$clean_sample_id"`
 
 	#if meta is found create input metadata row
 	if [[ ! "$meta" == "" ]]; then
-		echo $sampleID
 		#convert date to ncbi required format - 4/21/81 to 1981-04-21
-		raw_date=`echo $meta | grep -o "[0-9]*/[0-9]*/202[0-9]*"`
+		raw_date=`echo $meta | awk -F',' '{print $(NF-1)}'` #| grep -o "[0-9]*/[0-9]*/202[0-9]*"`
 		collection_yr=`echo "${raw_date}" | awk '{split($0,a,"/"); print a[3]}' | tr -d '"'`
 
 		# set title
@@ -150,14 +151,26 @@ for sample_line in ${sample_list[@]}; do
 		# ncbi_metadata
 		## breakoutput into chunks
 		chunk1="${wgsID}\t${wgsID}\t${sample_title}\t${config_library_strategy}\t${config_library_source}\t${config_library_selection}"
-		chunk2="${config_library_layout}\t${config_platform}\t${instrument_model}\t${config_design_description}\t${config_filetype}\t${sampleID}.R1.fastq.gz"
-		chunk3="${id}.R2.fastq.gz\t${config_filename3}\t${config_filename4}\t${assembly}\t${config_fasta_file}"
+		chunk2="${config_library_layout}\t${config_platform}\t${instrument_model}\t${config_design_description}\t${config_filetype}\t${wgsID}.R1.fastq.gz"
+		chunk3="${sampleID}.R2.fastq.gz\t${config_filename3}\t${config_filename4}\t${assembly}\t${config_fasta_file}"
 		## add output variables to attributes file
 		echo -e "${chunk1}\t${chunk2}\t${chunk3}" >> $ncbi_metadata
 
 		# move fastq files
-		mv ${sampleID}* $upload_dir
+		for file in ${sampleID}*_R[12]_001.fastq.gz; do
+			# Extract base sample name before _SXX_LXXX
+			base_name=$(echo "$file" | sed -E 's/_S[0-9]+_L[0-9]+[0-9]+//')
+
+			# Rename with .R1 or .R2
+			new_name=$(echo "$base_name" | sed 's/_R1_001/.R1/' | sed 's/_R2_001/.R2/')
+
+			# Rename with wgsID
+			new_name=`echo $new_name | sed "s/$sampleID/$wgsID/g"`
+
+			# Move to upload directory
+			mv "$file" "$upload_dir/$new_name"
+		done
 	else
-		echo "Missing metadata $sampleID" >> $id_log
+		echo "Missing metadata $sampleID | $clean_sample_id" >> $id_log
 	fi
 done
