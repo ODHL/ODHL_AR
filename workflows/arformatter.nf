@@ -116,7 +116,7 @@ workflow arFORMATTER {
 
         // prepare for NCBI upload
         //// if the samples are test they wont be stored in basespace dir
-        if (!file("params.analysis_outdir/basespace").exists()) {
+        if (!file("${analysis_outdir}/basespace").isDirectory()) {
             all_fastq_files = Channel
                 .fromPath("/home/ubuntu/workflows/ODHL_AR/test/fastq/*fastq.gz")
                 .map (file -> file)
