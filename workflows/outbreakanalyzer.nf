@@ -23,6 +23,7 @@ projectID                   = params.projectID
 outbreak_species            = params.outbreak_species
 max_samples                 = params.max_samples
 percent_id                  = params.percent_id
+ref_samples                 = params.ref_samples
 
 ch_ardb                     = Channel.fromPath(params.ardb)
 ch_snp_config               = Channel.fromPath(params.snp_config)
@@ -91,7 +92,6 @@ workflow outbreakANALYZER {
             }
             .join(ch_sampleList)
             .map { sample_id, file -> file } // Keep only the file paths
-            // .collect()
         // ch_sample_gffs.view()
 
         // Pull all reference files
@@ -163,12 +163,12 @@ workflow outbreakANALYZER {
         // Report
         //////////////////////////////////////////////////////////////////
         ch_analyzer_results = Channel
-            .fromPath("${report_outdir}/report_basic_prep/*final_report.csv")
+            .fromPath("${report_outdir}/report_basic/*final_report.csv")
             .map (file -> file)
             .collect()
 
         ch_ar_predictions = Channel
-            .fromPath("${report_outdir}/report_basic_prep/*ar_predictions.tsv")
+            .fromPath("${report_outdir}/report_basic/*ar_predictions.tsv")
             .map (file -> file)
             .collect()
 
@@ -182,9 +182,11 @@ workflow outbreakANALYZER {
             ch_ar_predictions,
             ch_outbreak_metadata,
             projectID,
-            ch_outbreak_RMD
+            ch_outbreak_RMD,
+            ref_samples
         )
         ch_updated_outbreakRMD = REPORT_OUTBREAK_PREP.out.projecOutbreakRMD
+        ch_db_lookup           = REPORT_OUTBREAK_PREP.out.dbLookup
 
         // run outbreakREPORT
         REPORT_OUTBREAK(
@@ -196,7 +198,9 @@ workflow outbreakANALYZER {
             ch_ar_predictions,
             ch_outbreak_metadata,
             projectID,
-            ch_updated_outbreakRMD
+            ch_updated_outbreakRMD,
+            ref_samples,
+            ch_db_lookup
         )
         ch_output=REPORT_OUTBREAK.out.report
 }

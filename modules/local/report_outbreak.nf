@@ -14,6 +14,8 @@ process REPORT_OUTBREAK {
     path(ch_outbreak_metadata)
     val(projectID)
     path(updated_outbreakRMD)
+    path(ref_samples)
+    path(db_lookup)
 
   output:
     path('*.html')           , emit: report

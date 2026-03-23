@@ -12,9 +12,11 @@ process REPORT_OUTBREAK_PREP {
         path(outbreak_metadata)
         val(projectID)
         path(outbreak_RMD)
+        path(ref_samples)
 
     output:
         path("*_outbreakReport.Rmd")        , emit: projecOutbreakRMD
+        path("db_lookup.csv")               , emit: dbLookup
 
     script:
     """
@@ -31,6 +33,7 @@ process REPORT_OUTBREAK_PREP {
         ${ar_predictions} \
         ${outbreak_metadata} \
         ${projectID} \
-        ${projectID}_outbreakReport.Rmd
+        ${projectID}_outbreakReport.Rmd \
+        ${ref_samples}
     """
 }

@@ -12,6 +12,7 @@ ar_predictions=$6
 outbreak_metadata=$7
 projectID=$8
 outbreak_RMD=$9
+ref_samples=${10}
 
 ##########################################################
 # Eval, source
@@ -40,3 +41,12 @@ sed -i "s~REP_PREDICT~$ar_predictions~g" $outbreak_RMD
 sed -i "s~REP_META~$outbreak_metadata~g" $outbreak_RMD
 sed -i "s/REP_OB/$projectID/g" $outbreak_RMD
 sed -i "s~REP_DATE~$today~g" $outbreak_RMD
+sed -i "s~REF_REFSAMPLES~$ref_samples~g" $outbreak_RMD
+sed -i "s~REP_DBLOOKUP~db_lookup.csv~g" $outbreak_RMD
+
+# Generate db_lookup.csv: non-OB entries from db_master with SRRID populated
+dbmaster="$HOME/workflows/ODHL_AR/assets/databases/IDdbs/db_master.csv"
+echo "OHIO_ID,SRRID,SAMID,DATE_ASSIGNED" > db_lookup.csv
+if [ -f "$dbmaster" ]; then
+  awk -F',' 'NR>1 && $4!="" && $2!="" && $1!~/^OB/ { print $2","$4","$5","$6 }' "$dbmaster" >> db_lookup.csv
+fi
