@@ -16,4 +16,4 @@ This workflow is developed and maintained by the [`Ohio Department of Health Lab
 ---
 
 ## **Pipeline Information**
-View our [`docs`](https://odhl.github.io/ODHL_AR/) website for more information on the pipeline, how to execute, input requirements, output files, and contributions.
+View our [`docs`](https://odhl.github.io/ODHL_AR/) website for more information on the pipeline, how to execute, input requirements, output files, and contributions.a
