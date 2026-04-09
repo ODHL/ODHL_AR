@@ -19,6 +19,9 @@ function up(s){ return toupper(s) }
 function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
 function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
+function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+([_-].*)?$/) }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function is_date(s){ s=trim(s); return (s ~ /^[0-9]{2}[-\/][0-9]{2}[-\/][0-9]{4}$/ || s ~ /^[0-9]{4}[-\/][0-9]{2}[-\/][0-9]{2}$/) }
 
 BEGIN{
     OFS=","
@@ -30,8 +33,17 @@ BEGIN{
         line = trim(line)
         if (line=="") continue
         n = split(line, a, FS)
-        sid = up(trim(a[1]))
-        sp  = (n>=2 ? trim(a[2]) : "")
+        sid = ""
+        sp  = ""
+        c1 = trim(a[1])
+        c2 = (n>=2 ? trim(a[2]) : "")
+        if (is_id(c1)) {
+            sid = canon_id(c1)
+            if (n>=2 && !is_id(c2) && !is_date(c2)) sp = c2
+        } else if (n>=2 && is_id(c2)) {
+            sid = canon_id(c2)
+            if (!is_date(c1)) sp = c1
+        }
         if (sid=="" || sid=="SAMPLEID") continue
         species[sid] = sp
         samples[sid] = 1

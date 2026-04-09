@@ -1,240 +1,74 @@
-# ob_analysis — ODHL AR Outbreak/BaseSpace Metadata Workflow
+# ob_analysis
 
-This directory contains scripts and supporting data for resolving a list of AR
-specimen IDs to their BaseSpace project IDs, then generating a metadata CSV
-ready for `core_ncbi_prep.sh` (NCBI submission pipeline).
+Single-entry outbreak prep for ODHL_AR.
 
----
+Use one input file (`samples.csv`) and one deployment script (`run_ob_prep.sh`).
 
-## Workflow Overview
+## Input format
 
-```
-ob_analysis/
-├── samples.csv          ← your input: sampleID,species
-├── ar_pass.tsv          ← local Terra table (refresh as needed)
-├── extra_meta.tsv       ← supplemental metadata fallback
-│
-├── find_samples.sh  ────────────────────────────────► tmp/matched_database.csv
-│       looks up project IDs in db_master.csv (primary) and ar_pass.tsv
-│
-├── create_metadata.sh  ──────────────────────────────► tmp/metadata_for_script.csv
-│       pulls full metadata from db_master.csv + ar_pass.tsv + extra_meta.tsv   tmp/missing_samples.txt
-│
-├── check_bs_access.sh  ─────────────────────────────► pass/fail per project (stderr)
-│       verifies BaseSpace access to all projects before running the pipeline
-│
-├── run_createScripts.sh <PROJECT>  ─────────────────► $HOME/output/PROJECT/input/
-│       builds labResults.csv, samplesheet.csv, metadata file,
-│       and generates the four run_ar*.sh workflow scripts
-│
-└── maintain_db.sh      merge, deduplicate, and clean OHIO_IDs in db_master
-                         (external db_master.csv, lives in assets/databases/)
+Put one sample per line in `samples.csv`.
 
-tmp/   ← all generated/intermediate files (safe to delete and regenerate)
-```
+Supported forms:
 
----
+1. `sampleID`
+2. `sampleID,species` (species is optional and ignored by the prep selector)
+3. `date<TAB>sampleID` (your current format)
 
-## File Reference
-
-### Input files
-
-| File | Description |
-|---|---|
-| `samples.csv` | Your working list of specimen IDs to process. One row per sample: `sampleID,species`. No header required. |
-| `ar_pass.tsv` | Local copy of the Terra `ar_pass` data table (TSV). Source for specimen_id, isolation_source, collection_date, and sequence_classification. |
-| `extra_meta.tsv` | Supplemental metadata (specimen_id, isolation_source, collect_date). Fallback when a sample is absent from `ar_pass.tsv`. |
-| `db_master.csv` | Canonical master database at `assets/databases/IDdbs/db_master.csv`. Primary source for project IDs, WGS/SRR accessions, and sequencer date. |
-
-### Generated files (written to `tmp/`)
-
-All script-generated files land in the `tmp/` subdirectory so they are easy
-to distinguish from the permanent input files. `tmp/` can be safely deleted
-and recreated by re-running the scripts.
-
-| File | Created by | Description |
-|---|---|---|
-| `tmp/matched_database.csv` | `find_samples.sh` | Quick lookup result: sampleID → projectID. |
-| `tmp/find_samples_missing.txt` | `find_samples.sh` | Sample IDs not resolved from any source (empty if all found). |
-| `tmp/metadata_for_script.csv` | `create_metadata.sh` | Full 15-column metadata CSV for `core_ncbi_prep.sh`. |
-| `tmp/missing_samples.txt` | `create_metadata.sh` | Sample IDs not resolved from any source. |
-
-### External files managed by `maintain_db.sh`
-
-| File | Description |
-|---|---|
-| `assets/databases/IDdbs/db_master.csv` | Updated in-place after each run. |
-| `assets/databases/IDdbs/archive/db_master_<date>.csv` | Archive copy made before each update. |
-
----
-
-## Step-by-Step Usage
-
-### Step 1 — Populate `samples.csv`
-
-Create or edit `samples.csv` with the specimen IDs you want to process:
+Example:
 
 ```
-25AR002067,Acinetobacter
-25AR002066,Acinetobacter
-25AR001971,Klebsiella
+04-06-2026	26AR000632
+04-06-2026	26AR000720
 ```
 
-No header line is needed. A second column (species) is optional but recommended.
+## One-command run
 
----
-
-### Step 2 — Find project IDs (quick lookup)
+From `ob_analysis`:
 
 ```bash
-cd $HOME/workflows/ODHL_AR/ob_analysis
-
-bash find_samples.sh
+bash run_ob_prep.sh OB26001
 ```
 
-Diagnostic output (totals, missing IDs) goes to **stderr**.  
-Matched results are written to `tmp/matched_database.csv` and also printed to **stdout**, so you can pipe or redirect:
+If project ID is omitted, default is `OB<YYMMDD>`.
 
-```bash
-bash find_samples.sh > tmp/matched.csv 2>find_log.txt
-```
+What this script does end-to-end:
 
-**Override paths with environment variables:**
+1. Reads source sample IDs from `samples.csv`.
+2. Resolves species and project IDs from `ar_pass.tsv`.
+3. Fails fast if any source sample is missing in `ar_pass.tsv`.
+4. Selects random same-species reference samples from `ar_pass.tsv` to reach 15 total.
+5. Builds `tmp/matched_database.csv` and verifies BaseSpace access.
+6. Builds metadata via `create_metadata.sh`.
+7. Writes ready-to-run files into `$HOME/output/<PROJECT>/input/`:
+   `samplesheet.csv`, `labResults.csv`, `ref_samples.csv`, `<PROJECT>_metadata.csv`.
+8. Generates run scripts:
+   `run_arANALYZER.sh`, `run_arFORMATTER.sh`, `run_arREPORTER.sh`, `run_arOutbreak.sh`.
 
-```bash
-SAMPLES_FILE=/path/to/my_samples.csv \
-AR_PASS_TSV=/path/to/ar_pass.tsv \
-DB_MASTER_CSV=/path/to/db_master.csv \
-OUT=/path/to/output.csv \
-bash find_samples.sh
-```
+## Important behavior
 
-**Lookup priority:** db_master.csv (exact match) → db_master.csv (prefix match, strips `_` / `-` suffix) → ar_pass.tsv (exact match).
+1. Source sample species is inferred from `ar_pass.tsv` (`sequence_classification`).
+2. References are selected only from the same inferred species.
+3. Default total sample target is 15 (`TARGET_TOTAL=15`).
+4. If fewer references exist than needed, the script continues with all available refs and warns.
+5. If source samples map to mixed species, the script exits with an error.
 
----
+## Environment overrides
 
-### Step 3 — Build full metadata for NCBI submission
+Optional environment variables:
 
-```bash
-bash create_metadata.sh
-```
+1. `SAMPLES_FILE` (default: `ob_analysis/samples.csv`)
+2. `AR_PASS_TSV` (default: `ob_analysis/ar_pass.tsv`)
+3. `EXTRA_TSV` (default: `ob_analysis/extra_meta.tsv`)
+4. `DB_MASTER_CSV` (default: `assets/databases/IDdbs/db_master.csv`)
+5. `TARGET_TOTAL` (default: `15`)
+6. `PROJECT` (alternative to positional project argument)
+7. `BS` (optional explicit path to BaseSpace CLI)
 
-Reads `samples.csv` and writes `metadata_for_script.csv` (15-column format for
-`core_ncbi_prep.sh`). Resolution priority per field:
+## Compatibility notes
 
-| Field | Primary | Fallback |
-|---|---|---|
-| `basespace_collection_id`, `wgs_id`, `srr_number`, `wgs_date_put_on_sequencer` | `db_master.csv` (complete rows first) | `ar_pass.tsv` |
-| `specimen_id`, `isolation_source`, `collection_date`, `sequence_classification` | `ar_pass.tsv` | `extra_meta.tsv` |
+1. `run_createScripts.sh` now delegates to `run_ob_prep.sh`.
+2. `find_samples.sh` and `create_metadata.sh` were updated to parse `date + sampleID` input rows.
 
-Any sample not found in any source is listed in `missing_samples.txt`.
+## DB maintenance
 
-**Override paths with flags:**
-
-```bash
-bash create_metadata.sh \
-  -s /path/to/samples.csv \
-  -m /path/to/ar_pass.tsv \
-  -e /path/to/extra_meta.tsv \
-  -d /path/to/db_master.csv \
-  -o /path/to/output.csv \
-  -x /path/to/missing.txt
-```
-
----
-
-### Step 4 — Check BaseSpace access
-
-Before running the pipeline, verify you have access to every project:
-
-```bash
-bash check_bs_access.sh
-```
-
-Reads `tmp/matched_database.csv`, checks each unique project against the
-BaseSpace CLI, and reports which ones are accessible vs. need permissions.
-Exit code is non-zero if any project fails, so it can be used as a gate:
-
-```
-  OK          OH-VH01632-250221
-  NO ACCESS   OH-VH00648-260220
-  ...
-  accessible:   11 / 12
-  Need access to 1 project(s):
-    OH-VH00648-260220
-```
-
-Request access for any failing projects, then re-run to confirm before
-proceeding to Step 5.
-
----
-
-### Step 5 — Set up the project run directory
-
-Once Steps 2 and 3 are complete, generate the run directory and workflow scripts:
-
-```bash
-bash run_createScripts.sh <PROJECT>
-```
-
-This creates `$HOME/output/<PROJECT>/input/` containing:
-
-| File | Source |
-|---|---|
-| `labResults.csv` | built from `samples.csv` |
-| `samplesheet.csv` | built from `tmp/matched_database.csv` |
-| `<PROJECT>_metadata.csv` | copied from `tmp/metadata_for_script.csv` |
-| `run_arANALYZER.sh` | generated |
-| `run_arFORMATTER.sh` | generated |
-| `run_arREPORTER.sh` | generated |
-| `run_arOutbreak.sh` | generated |
-
-Then run each workflow script in sequence from the output directory.
-
----
-
-## DB Maintenance
-
-`maintain_db.sh` combines three operations in sequence — merge new ar_pass
-entries, deduplicate by `(PROJECT_ID, OHIO_ID, WGSID)` keeping complete rows,
-then strip run suffixes from `OHIO_ID` — and writes the result **directly back
-to `db_master.csv`** (in-place). Before overwriting, the existing file is
-archived to `assets/databases/IDdbs/archive/db_master_<YYYY-MM-DD>.csv`.
-
-```bash
-# Run from ob_analysis (uses default paths)
-bash maintain_db.sh
-```
-
-Both input paths default to the standard locations, so no arguments are needed
-in the normal case. You can still override with positional args:
-
-```bash
-bash maintain_db.sh /path/to/db_master.csv /path/to/ar_pass.tsv
-```
-
-Or with environment variables:
-
-```bash
-DB=/path/to/db_master.csv ARPASS=/path/to/ar_pass.tsv bash maintain_db.sh
-```
-
-The script prints two status lines to stderr on success:
-
-```
-Archived: .../archive/db_master_2026-03-20.csv
-Updated:  .../db_master.csv
-```
-
-> **Requires GNU awk (`gawk`)** — uses `ARGIND` for multi-file processing.
-
----
-
-## Common Issues
-
-| Problem | Likely cause | Fix |
-|---|---|---|
-| Sample shows up in `missing_samples.txt` | Not yet in `ar_pass.tsv` or `extra_meta.tsv` | Add row to `extra_meta.tsv` or refresh `ar_pass.tsv` from Terra |
-| `find_samples.sh` finds wrong project | Multiple runs for the same ID in db_master | Run `maintain_db.sh` to deduplicate, or add the ID to `ar_pass.tsv` (takes priority) |
-| `create_metadata.sh` outputs empty ISO/date | Field blank in ar_pass; not in extra_meta | Add supplemental row to `extra_meta.tsv` |
-| `maintain_db.sh` fails with awk error | System `awk` is mawk/nawk, not gawk | Install gawk or call explicitly: `gawk -f ...` |
+`maintain_db.sh` is unchanged and still updates `assets/databases/IDdbs/db_master.csv` in place with an archive copy.

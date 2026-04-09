@@ -9,8 +9,16 @@ set -euo pipefail
 # Default input: tmp/matched_database.csv (col 3 = projectID)
 
 OB_DIR="${OB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
-BS="${BS:-$HOME/tools/basespace}"
+BS="${BS:-}"
 INPUT="${1:-$OB_DIR/tmp/matched_database.csv}"
+
+if [[ -z "$BS" ]]; then
+    if command -v basespace >/dev/null 2>&1; then
+        BS="$(command -v basespace)"
+    elif [[ -x "$HOME/tools/basespace" ]]; then
+        BS="$HOME/tools/basespace"
+    fi
+fi
 
 [[ -f "$INPUT"  ]] || { echo "ERROR: input not found: $INPUT" >&2; exit 1; }
 [[ -x "$BS"     ]] || { echo "ERROR: basespace CLI not found: $BS" >&2; exit 1; }

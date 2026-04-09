@@ -44,6 +44,9 @@ function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
 function nz(x, repl){ return (x=="" ? repl : x) }
 function csv(f){ gsub(/\r$/,"",f); gsub(/"/,"\"\"",f); if(f ~ /[", ]/) return "\"" f "\""; return f }
+function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+([_-].*)?$/) }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function is_date(s){ s=trim(s); return (s ~ /^[0-9]{2}[-\/][0-9]{2}[-\/][0-9]{4}$/ || s ~ /^[0-9]{4}[-\/][0-9]{2}[-\/][0-9]{2}$/) }
 
 BEGIN{
   OFS = ","
@@ -54,10 +57,15 @@ BEGIN{
     sub(/\r$/,"",line); line = trim(line)
     if (line=="") continue
     n = split(line, a, FS)
-    sid = up(trim(a[1]))
+    sid = ""
+    c1 = trim(a[1]); c2 = (n>=2 ? trim(a[2]) : "")
+    if (is_id(c1)) sid = canon_id(c1)
+    else if (n>=2 && is_id(c2)) sid = canon_id(c2)
     if (sid=="" || sid=="SAMPLEID") continue
     samples[sid] = 1
-    sp_input[sid] = (n>=2 ? trim(a[2]) : "")
+    if (is_id(c1) && n>=2 && !is_id(c2) && !is_date(c2)) sp_input[sid] = c2
+    else if (is_id(c2) && !is_date(c1)) sp_input[sid] = c1
+    else sp_input[sid] = ""
     order[++N] = sid
   }
   close(SAMPLES)
