@@ -50,10 +50,15 @@ if [[ ! -f "$DB_MASTER_CSV" ]]; then
   DB_MASTER_CSV=""
 fi
 
-check_basespace_access() {
-  local input_csv="$1"
-  local bs="${BS:-}"
+declare -A BS_ACCESS_CACHE
+BS_BIN=""
 
+resolve_basespace_cli() {
+  if [[ -n "$BS_BIN" ]]; then
+    return 0
+  fi
+
+  local bs="${BS:-}"
   if [[ -z "$bs" ]]; then
     if command -v basespace >/dev/null 2>&1; then
       bs="$(command -v basespace)"
@@ -63,6 +68,36 @@ check_basespace_access() {
   fi
 
   [[ -x "$bs" ]] || { echo "ERROR: basespace CLI not found: $bs" >&2; return 1; }
+  BS_BIN="$bs"
+}
+
+project_is_accessible() {
+  local proj_raw="$1"
+  local proj="$proj_raw"
+  local result=""
+
+  subproj="${proj%_AR}"
+  proj="$subproj"
+
+  if [[ -n "${BS_ACCESS_CACHE[$proj]+x}" ]]; then
+    [[ "${BS_ACCESS_CACHE[$proj]}" == "ok" ]]
+    return
+  fi
+
+  resolve_basespace_cli || return 1
+  result=$("$BS_BIN" list projects --filter-field Name --filter-term "$proj" 2>/dev/null || true)
+  if echo "$result" | grep -q "$proj"; then
+    BS_ACCESS_CACHE[$proj]="ok"
+    return 0
+  fi
+
+  BS_ACCESS_CACHE[$proj]="fail"
+  return 1
+}
+
+check_basespace_access() {
+  local input_csv="$1"
+  resolve_basespace_cli || return 1
 
   mapfile -t projects < <(
     awk -F',' 'NR>1 && $3!="" { p=$3; sub(/_AR$/, "", p); print p }' "$input_csv" | sort -u
@@ -76,8 +111,7 @@ check_basespace_access() {
   echo
 
   for proj in "${projects[@]}"; do
-    result=$("$bs" list projects --filter-field Name --filter-term "$proj" 2>/dev/null || true)
-    if echo "$result" | grep -q "$proj"; then
+    if project_is_accessible "$proj"; then
       echo "  OK          $proj"
       (( ok++ )) || true
     else
@@ -428,12 +462,22 @@ echo "sampleID,species,projectID,species_full" > "$REF_SELECTED"
 if (( refs_needed > 0 )); then
   available_refs=$(( $(wc -l < "$REF_CANDIDATES") - 1 ))
   if (( available_refs > 0 )); then
-    pick_count=$refs_needed
-    if (( available_refs < pick_count )); then
-      pick_count=$available_refs
-      echo "WARN: only $available_refs reference candidates found for species $outbreak_species" >&2
+    selected_refs=0
+    while IFS= read -r ref_line; do
+      [[ -n "$ref_line" ]] || continue
+      ref_proj=$(printf '%s\n' "$ref_line" | awk -F',' '{print $3}')
+      if project_is_accessible "$ref_proj"; then
+        printf '%s\n' "$ref_line" >> "$REF_SELECTED"
+        selected_refs=$((selected_refs + 1))
+        if (( selected_refs >= refs_needed )); then
+          break
+        fi
+      fi
+    done < <(tail -n +2 "$REF_CANDIDATES" | sort -t',' -k3,3 -k1,1)
+
+    if (( selected_refs < refs_needed )); then
+      echo "WARN: only $selected_refs accessible reference samples found for species $outbreak_species" >&2
     fi
-    tail -n +2 "$REF_CANDIDATES" | shuf -n "$pick_count" >> "$REF_SELECTED"
   fi
 fi
 
