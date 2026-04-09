@@ -72,3 +72,9 @@ Optional environment variables:
 ## DB maintenance
 
 `maintain_db.sh` is unchanged and still updates `assets/databases/IDdbs/db_master.csv` in place with an archive copy. It now reads the canonical ar_pass table from `assets/databases/ar_pass/ar_pass.tsv` by default.
+
+To replace the active ar_pass table and archive the current one automatically:
+
+```bash
+bash assets/databases/ar_pass/install_ar_pass.sh /path/to/new_ar_pass.tsv
+```
