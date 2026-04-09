@@ -27,6 +27,17 @@ REF_SAMPLES="$OUTDIR/ref_samples.csv"
 METADATA_OUT="$TMP_DIR/metadata_for_script.csv"
 MISSING_META="$TMP_DIR/missing_samples.txt"
 
+: > "$SOURCE_IDS"
+: > "$SOURCE_RESOLVED"
+: > "$SOURCE_MISSING"
+: > "$REF_CANDIDATES"
+: > "$REF_SELECTED"
+: > "$SELECTED_ALL"
+: > "$SELECTED_META"
+: > "$MATCHED_DB"
+: > "$METADATA_OUT"
+: > "$MISSING_META"
+
 [[ -f "$SAMPLES_FILE" ]] || { echo "ERROR: samples file not found: $SAMPLES_FILE" >&2; exit 1; }
 [[ -f "$AR_PASS_TSV" ]] || { echo "ERROR: ar_pass TSV not found: $AR_PASS_TSV" >&2; exit 1; }
 
