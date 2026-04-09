@@ -38,7 +38,7 @@ What this script does end-to-end:
 3. Fails fast if any source sample is missing in `ar_pass.tsv`.
 4. Selects random same-species reference samples from `ar_pass.tsv` to reach 15 total.
 5. Builds `tmp/matched_database.csv` and verifies BaseSpace access.
-6. Builds metadata via `create_metadata.sh`.
+6. Builds NCBI metadata in-script from `assets/databases/ar_pass/ar_pass.tsv`, `extra_meta.tsv`, and `db_master.csv`.
 7. Writes ready-to-run files into `$HOME/output/<PROJECT>/input/`:
    `samplesheet.csv`, `labResults.csv`, `ref_samples.csv`, `<PROJECT>_metadata.csv`.
 8. Generates run scripts:
@@ -57,18 +57,18 @@ What this script does end-to-end:
 Optional environment variables:
 
 1. `SAMPLES_FILE` (default: `ob_analysis/samples.csv`)
-2. `AR_PASS_TSV` (default: `ob_analysis/ar_pass.tsv`)
+2. `AR_PASS_TSV` (default: `assets/databases/ar_pass/ar_pass.tsv`)
 3. `EXTRA_TSV` (default: `ob_analysis/extra_meta.tsv`)
 4. `DB_MASTER_CSV` (default: `assets/databases/IDdbs/db_master.csv`)
 5. `TARGET_TOTAL` (default: `15`)
 6. `PROJECT` (alternative to positional project argument)
 7. `BS` (optional explicit path to BaseSpace CLI)
 
-## Compatibility notes
+## Repository hygiene
 
-1. `run_createScripts.sh` now delegates to `run_ob_prep.sh`.
-2. `find_samples.sh` and `create_metadata.sh` were updated to parse `date + sampleID` input rows.
+1. `ob_analysis/tmp` is treated as generated output.
+2. `ob_analysis/.gitignore` ignores all files in `tmp/` except `tmp/.gitkeep`.
 
 ## DB maintenance
 
-`maintain_db.sh` is unchanged and still updates `assets/databases/IDdbs/db_master.csv` in place with an archive copy.
+`maintain_db.sh` is unchanged and still updates `assets/databases/IDdbs/db_master.csv` in place with an archive copy. It now reads the canonical ar_pass table from `assets/databases/ar_pass/ar_pass.tsv` by default.

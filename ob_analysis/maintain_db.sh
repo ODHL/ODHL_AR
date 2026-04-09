@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Default paths
 DB="${DB:-$HOME/workflows/ODHL_AR/assets/databases/IDdbs/db_master.csv}"
-ARPASS="${ARPASS:-$HOME/workflows/ODHL_AR/ob_analysis/ar_pass.tsv}"
+ARPASS="${ARPASS:-$HOME/workflows/ODHL_AR/assets/databases/ar_pass/ar_pass.tsv}"
 
 # Accept optional positional args to override defaults
 [[ $# -ge 1 ]] && DB="$1"

@@ -5,7 +5,7 @@ OB_DIR="${OB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 WF_DIR="$(cd "$OB_DIR/.." && pwd)"
 
 SAMPLES_FILE="${SAMPLES_FILE:-$OB_DIR/samples.csv}"
-AR_PASS_TSV="${AR_PASS_TSV:-$OB_DIR/ar_pass.tsv}"
+AR_PASS_TSV="${AR_PASS_TSV:-$WF_DIR/assets/databases/ar_pass/ar_pass.tsv}"
 EXTRA_TSV="${EXTRA_TSV:-$OB_DIR/extra_meta.tsv}"
 DB_MASTER_CSV="${DB_MASTER_CSV:-$WF_DIR/assets/databases/IDdbs/db_master.csv}"
 TARGET_TOTAL="${TARGET_TOTAL:-15}"
@@ -29,6 +29,225 @@ MISSING_META="$TMP_DIR/missing_samples.txt"
 
 [[ -f "$SAMPLES_FILE" ]] || { echo "ERROR: samples file not found: $SAMPLES_FILE" >&2; exit 1; }
 [[ -f "$AR_PASS_TSV" ]] || { echo "ERROR: ar_pass TSV not found: $AR_PASS_TSV" >&2; exit 1; }
+
+if [[ ! -f "$EXTRA_TSV" ]]; then
+  echo "WARN: extra TSV not found: $EXTRA_TSV (fallback limited)" >&2
+  EXTRA_TSV=""
+fi
+if [[ ! -f "$DB_MASTER_CSV" ]]; then
+  echo "WARN: db_master CSV not found: $DB_MASTER_CSV (will rely on ar_pass only)" >&2
+  DB_MASTER_CSV=""
+fi
+
+check_basespace_access() {
+  local input_csv="$1"
+  local bs="${BS:-}"
+
+  if [[ -z "$bs" ]]; then
+    if command -v basespace >/dev/null 2>&1; then
+      bs="$(command -v basespace)"
+    elif [[ -x "$HOME/tools/basespace" ]]; then
+      bs="$HOME/tools/basespace"
+    fi
+  fi
+
+  [[ -x "$bs" ]] || { echo "ERROR: basespace CLI not found: $bs" >&2; return 1; }
+
+  mapfile -t projects < <(
+    awk -F',' 'NR>1 && $3!="" { p=$3; sub(/_AR$/, "", p); print p }' "$input_csv" | sort -u
+  )
+
+  local total="${#projects[@]}"
+  local ok=0 fail=0
+  local failed=()
+
+  echo "Checking access to $total project(s) via BaseSpace..."
+  echo
+
+  for proj in "${projects[@]}"; do
+    result=$("$bs" list projects --filter-field Name --filter-term "$proj" 2>/dev/null || true)
+    if echo "$result" | grep -q "$proj"; then
+      echo "  OK          $proj"
+      (( ok++ )) || true
+    else
+      echo "  NO ACCESS   $proj"
+      failed+=("$proj")
+      (( fail++ )) || true
+    fi
+  done
+
+  echo
+  echo "########################################"
+  echo "accessible:   $ok / $total"
+  if [[ "$fail" -eq 0 ]]; then
+    echo "All projects accessible - ready to run."
+  else
+    echo "Need access to $fail project(s):"
+    for p in "${failed[@]}"; do echo "  $p"; done
+  fi
+  echo "########################################"
+
+  [[ "$fail" -eq 0 ]]
+}
+
+build_metadata_csv() {
+  local samples_file="$1"
+  local arpass_tsv="$2"
+  local extra_tsv="$3"
+  local db_csv="$4"
+  local out_csv="$5"
+  local missing_csv="$6"
+
+  cat > "$out_csv" <<'HDR'
+sample_id,basespace_collection_id,specimen_id,wgs_id,srr_number,wgs_date_put_on_sequencer,sequence_classification,filler1,filler2,filler3,isolation_source,filler4,filler5,collection_date,trailing_col
+HDR
+  printf 'sampleID,species,projectID\n' > "$missing_csv"
+
+  awk -v SAMPLES="$samples_file" -v MASTER="$arpass_tsv" -v EXTRA="$extra_tsv" \
+      -v DBM="$db_csv" -v OUTFILE="$out_csv" -v MISSFILE="$missing_csv" '
+function up(s){ return toupper(s) }
+function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
+function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
+function trim(s){ return ltrim(rtrim(s)) }
+function csv(f){ gsub(/\r$/,"",f); gsub(/"/,"\"\"",f); if(f ~ /[", ]/) return "\"" f "\""; return f }
+function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+([_-].*)?$/) }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function is_date(s){ s=trim(s); return (s ~ /^[0-9]{2}[-\/][0-9]{2}[-\/][0-9]{4}$/ || s ~ /^[0-9]{4}[-\/][0-9]{2}[-\/][0-9]{2}$/) }
+
+BEGIN{
+  OFS=","
+
+  FS="[,\t]"
+  while ((getline line < SAMPLES) > 0) {
+    sub(/\r$/,"",line); line=trim(line)
+    if (line=="") continue
+    n=split(line, a, FS)
+    sid=""
+    c1=trim(a[1]); c2=(n>=2 ? trim(a[2]) : "")
+    if (is_id(c1)) sid=canon_id(c1)
+    else if (n>=2 && is_id(c2)) sid=canon_id(c2)
+    if (sid=="" || sid=="SAMPLEID") continue
+    samples[sid]=1
+    if (is_id(c1) && n>=2 && !is_id(c2) && !is_date(c2)) sp_input[sid]=c2
+    else if (is_id(c2) && !is_date(c1)) sp_input[sid]=c1
+    else sp_input[sid]=""
+    order[++N]=sid
+  }
+  close(SAMPLES)
+
+  FS=","
+  if (DBM != "" && (getline hdr < DBM) > 0) {
+    while ((getline line < DBM) > 0) {
+      sub(/\r$/,"",line); if (line=="") continue
+      split(line, a, FS)
+      proj=trim(a[1]); oid=up(trim(a[2]))
+      wgs=trim(a[3]); srr=trim(a[4]); sam=trim(a[5]); dat=trim(a[6])
+      if (oid=="") continue
+      complete=(srr!="" && srr!="NA" && sam!="" && sam!="NA")
+      if (complete || !(oid in D_proj)) {
+        D_proj[oid]=proj; D_wgs[oid]=wgs; D_srr[oid]=srr; D_dat[oid]=dat
+      }
+    }
+    close(DBM)
+  }
+
+  FS="\t"
+  if ((getline hdr < MASTER) <= 0) { print "ERROR: empty master TSV: " MASTER > "/dev/stderr"; exit 1 }
+  sub(/\r$/,"",hdr)
+  nh=split(hdr, H, FS)
+  for (i=1; i<=nh; i++) mapM[H[i]]=i
+
+  reqM="entity:ar_pass_id basespace_collection_id collection_date isolation_source specimen_id wgs_id srr_number wgs_date_put_on_sequencer sequence_classification"
+  split(reqM, RM, " ")
+  for (i in RM) {
+    if (!(RM[i] in mapM)) {
+      printf("WARN: master TSV missing header: %s (will be blank where used)\n", RM[i]) > "/dev/stderr"
+    }
+  }
+
+  while ((getline line < MASTER) > 0) {
+    sub(/\r$/,"",line); if (line=="") continue
+    split(line, a, FS)
+    sid_raw=(("entity:ar_pass_id" in mapM) ? a[mapM["entity:ar_pass_id"]] : "")
+    sid_key=up(trim(sid_raw))
+    if (sid_key=="") continue
+    M_sid[sid_key]=sid_raw
+    M_bsc[sid_key]=(("basespace_collection_id" in mapM) ? a[mapM["basespace_collection_id"]] : "")
+    M_cdt[sid_key]=(("collection_date" in mapM) ? a[mapM["collection_date"]] : "")
+    M_iso[sid_key]=(("isolation_source" in mapM) ? a[mapM["isolation_source"]] : "")
+    M_spc[sid_key]=(("specimen_id" in mapM) ? a[mapM["specimen_id"]] : "")
+    M_wgs[sid_key]=(("wgs_id" in mapM) ? a[mapM["wgs_id"]] : "")
+    M_srr[sid_key]=(("srr_number" in mapM) ? a[mapM["srr_number"]] : "")
+    M_wdt[sid_key]=(("wgs_date_put_on_sequencer" in mapM) ? a[mapM["wgs_date_put_on_sequencer"]] : "")
+    M_sc[sid_key]=(("sequence_classification" in mapM) ? a[mapM["sequence_classification"]] : "")
+  }
+  close(MASTER)
+
+  if (EXTRA != "") {
+    if ((getline hdr2 < EXTRA) > 0) {
+      sub(/\r$/,"",hdr2)
+      split(hdr2, E, FS)
+      for (i=1; i<=length(E); i++) mapE[E[i]]=i
+      while ((getline line < EXTRA) > 0) {
+        sub(/\r$/,"",line); if (line=="") continue
+        split(line, b, FS)
+        esid_raw=(("specimen_id" in mapE) ? b[mapE["specimen_id"]] : "")
+        esid_key=up(trim(esid_raw))
+        if (esid_key=="") continue
+        E_sid[esid_key]=esid_raw
+        E_iso[esid_key]=(("isolation_source" in mapE) ? b[mapE["isolation_source"]] : "")
+        E_cdt[esid_key]=(("collect_date" in mapE) ? b[mapE["collect_date"]] : "")
+      }
+      close(EXTRA)
+    }
+  }
+
+  found=0; miss=0
+  for (i=1; i<=N; i++) {
+    sid=order[i]
+    in_master=(sid in M_sid)
+    in_extra=(sid in E_sid)
+
+    if (!in_master && !in_extra) {
+      sp=sp_input[sid]
+      proj_miss=((sid in D_proj) ? D_proj[sid] : "")
+      print sid "," sp "," proj_miss >> MISSFILE
+      miss++
+      continue
+    }
+
+    sid_out=(in_master ? M_sid[sid] : E_sid[sid])
+    spc=(in_master ? M_spc[sid] : E_sid[sid])
+    sc=(in_master ? M_sc[sid] : "")
+    iso=(in_master ? M_iso[sid] : "")
+    cdt=(in_master ? M_cdt[sid] : "")
+    if ((iso=="" || iso=="NA") && (sid in E_iso)) iso=E_iso[sid]
+    if ((cdt=="" || cdt=="NA") && (sid in E_cdt)) cdt=E_cdt[sid]
+
+    bsc=((sid in D_proj) ? D_proj[sid] : (in_master ? M_bsc[sid] : ""))
+    wgs=((sid in D_wgs) ? D_wgs[sid] : (in_master ? M_wgs[sid] : ""))
+    srr=((sid in D_srr) ? D_srr[sid] : (in_master ? M_srr[sid] : ""))
+    dat=((sid in D_dat) ? D_dat[sid] : (in_master ? M_wdt[sid] : ""))
+
+    printf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+      csv(sid_out), csv(bsc), csv(spc), csv(wgs), csv(srr), csv(dat), csv(sc),
+      "", "", "", csv(iso), "", "", csv(cdt), "END") >> OUTFILE
+    found++
+  }
+
+  print "########################################" > "/dev/stderr"
+  print "total number of samples in list: " N > "/dev/stderr"
+  print "total number of rows written: " found > "/dev/stderr"
+  print "########################################" > "/dev/stderr"
+  if (miss > 0) {
+    print "Missing " miss " sample(s) -> " MISSFILE > "/dev/stderr"
+  } else {
+    close(MISSFILE); system("> " MISSFILE)
+    print "All requested samples were found." > "/dev/stderr"
+  }
+}
+'
+}
 
 awk '
 function up(s){ return toupper(s) }
@@ -217,15 +436,9 @@ awk -F',' 'BEGIN{print "sampleID,species,projectID"} NR>1 {print $1 "," $3 "," $
 awk -F',' 'BEGIN{print "sampleID,species"} NR>1 {print $1 "," $3}' "$SELECTED_ALL" > "$SELECTED_META"
 awk -F',' 'NR>1 && $2=="ref" {print $1}' "$SELECTED_ALL" > "$REF_SAMPLES"
 
-bash "$OB_DIR/check_bs_access.sh" "$MATCHED_DB"
+check_basespace_access "$MATCHED_DB"
 
-bash "$OB_DIR/create_metadata.sh" \
-  -s "$SELECTED_META" \
-  -m "$AR_PASS_TSV" \
-  -e "$EXTRA_TSV" \
-  -d "$DB_MASTER_CSV" \
-  -o "$METADATA_OUT" \
-  -x "$MISSING_META"
+build_metadata_csv "$SELECTED_META" "$AR_PASS_TSV" "$EXTRA_TSV" "$DB_MASTER_CSV" "$METADATA_OUT" "$MISSING_META"
 
 echo "sample,results" > "$OUTDIR/labResults.csv"
 awk -F',' -v species="$outbreak_species" 'NR>1 && $1!="" && $3!="" {
