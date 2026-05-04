@@ -15,6 +15,7 @@
 #############################################################################################
 # functions
 #############################################################################################
+source ~/.bashrc
 
 helpFunction()
 {
@@ -75,7 +76,7 @@ project_name=$(echo $project_id | cut -f1 -d "_" | cut -f1 -d " ")
 today_date=$(date '+%Y-%m-%d'); today_date=`echo $today_date | sed "s/-//g"`
 
 # set proj dir, output dir, tmp dir
-projDir="$HOME/$project_name"
+projDir="$HOME/output/$project_name"
 outDir="$projDir/results/$entry"
 tmpDir="$projDir/tmp"
 if [[ ! -d $tmpDir ]]; then mkdir -p $tmpDir; fi
@@ -113,7 +114,7 @@ fi
 
 # arOUTBREAK settings
 if [[ $entry == "outbreakANALYSIS" ]]; then
-   nextflowParams="$nextflowParams --analysis_outdir $projDir/results/arANALYSIS --report_outdir $projDir/results/arREPORT"
+   nextflowParams="$nextflowParams --analysis_outdir $projDir/results/arANALYSIS --outbreak_metadata $metadata_NCBI --report_outdir $projDir/results/arREPORT"
 
    # set output_NCBI, if present
    if [ ! -z $input_gff ]; then nextflowParams="$nextflowParams --input_gff $input_gff"; fi 

@@ -15,3 +15,9 @@ assets/databases/*/*backup*
 assets/databases/*/cached/*
 test/internal/
 assets/databases/outbreak/internal/
+
+# large binary files — never commit directly
+*.fastq.gz
+*.fasta.gz
+*.gff
+*.msh

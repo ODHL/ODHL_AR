@@ -53,14 +53,17 @@ echo -e "${chunk1},${chunk2},${chunk3},${chunk4}" > $final_results
 # create gene prediction file for any passing samples  
 for sample_id in "${sample_list[@]}"; do
     # set variables
-    specimen_id=$sample_id
+    clean_sample_id=`echo "$sample_id" | sed "s/"-${project_id}"//g"` 
     wgs_date_put_on_sequencer=`echo $project_id | cut -f3 -d"-"`
     run_id=$project_id
 
-    # set ID's from post file 
+    # set ID's from post file
     wgs_id=`cat $ncbi_post_file | grep $sample_id | cut -f3 -d","`
-    srr_id=`cat $ncbi_post_file | grep $sample_id | cut -f4 -d","`
-    samn_id=`cat $ncbi_post_file | grep $sample_id | cut -f4 -d","`
+    raw_srr=`cat $ncbi_post_file | grep $sample_id | cut -f4 -d","`
+    raw_samn=`cat $ncbi_post_file | grep $sample_id | cut -f5 -d","`
+    # only use values that match expected NCBI accession patterns
+    if [[ "$raw_srr" =~ ^SRR[0-9]+ ]]; then srr_id="$raw_srr"; else srr_id=""; fi
+    if [[ "$raw_samn" =~ ^SAMN[0-9]+ ]]; then samn_id="$raw_samn"; else samn_id=""; fi
 
     # pull data from analyzer_results
     ## determine row to pull analysis information from
@@ -83,7 +86,7 @@ for sample_id in "${sample_list[@]}"; do
     lab_results=`cat $analyzer_results | awk -F"\t" -v i=$SID 'FNR == i {print $25}'`
 
     # prepare chunks
-    chunk1="$specimen_id,$wgs_id,$srr_id,$wgs_date_put_on_sequencer,\"${sequence_classification}\",$run_id"
+    chunk1="$clean_sample_id,$wgs_id,$srr_id,$wgs_date_put_on_sequencer,\"${sequence_classification}\",$run_id"
     chunk2="$auto_qc_outcome,$estimated_coverage,$genome_length,"${species}",$mlst_scheme_1"
     chunk3="\"${mlst_1}\",$mlst_scheme_2,\"${mlst_2}\",\"${gamma_beta_lactam_resistance_genes}\""
     chunk4="\"${auto_qc_failure_reason}\",\"${lab_results}\",\"${samn_id}\""
@@ -91,6 +94,8 @@ for sample_id in "${sample_list[@]}"; do
     	
     # create all genes output file
 	if [[ $auto_qc_outcome == "PASS" ]]; then
-        cat ${sample_id}_all_genes.tsv | awk -F"\t" '{print $2"\t"$6"\t"$16"\t"$17}' | sed -s "s/_all_genes.tsv//g" | grep -v "_Coverage_of_reference_sequence">> $merged_prediction
+        if [[ -f ${sample_id}_all_genes.tsv ]]; then
+            cat ${sample_id}_all_genes.tsv | awk -F"\t" '{print $2"\t"$6"\t"$16"\t"$17}' | sed -s "s/_all_genes.tsv//g" | grep -v "_Coverage_of_reference_sequence">> $merged_prediction
+        fi
     fi
 done

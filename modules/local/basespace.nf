@@ -15,7 +15,7 @@ process BASESPACE {
     
     """
     # download files 
-    ~/tools/basespace download biosample -n ${prefix}
+    basespace download biosample -n ${prefix}
     
     # Grab R1, R2 names
     R1=\$(ls ${prefix}*ds*/*R1* | head -n1)

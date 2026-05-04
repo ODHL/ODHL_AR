@@ -33,6 +33,7 @@ process KRAKEN2_KRAKEN2 {
         --threads $task.cpus \\
         --report ${prefix}.kraken2_${kraken_type}.summary.txt \\
         --gzip-compressed \\
+        --memory-mapping \\
         $unclassified_command \\
         $classified_command \\
         $readclassification_command \\

@@ -94,6 +94,7 @@ ar_summary$Sample=gsub("_[0-9][0-9][0-9][0-9]_length_[0-9]*","",ar_summary$Sampl
 ar_summary$Sample=gsub("_[0-9][0-9][0-9]_length_[0-9]*","",ar_summary$Sample)
 ar_summary$Sample=gsub("_[0-9][0-9]_length_[0-9]*","",ar_summary$Sample)
 ar_summary$Sample=gsub("_[0-9]_length_[0-9]*","",ar_summary$Sample)
+ar_summary$Sample=gsub(paste0("-",projectname),"",ar_summary$Sample)
 ar_summary=ar_summary[!duplicated(ar_summary),]
 
 # create metadata
@@ -344,18 +345,20 @@ ggplot(aes(x = species,fill=species)) +
 
 ### ARGene Summary
 ```{r ar_summary}
-  # if there are consensus genes then print table
-  if (nrow(output_df)==0){
-    print("There are no genes with consensus between at least 50% of samples")
-  } else{
-    merge(sampleDF,output_df, by.x="specimen_id",
-      by.y="Sample")[,c("specimen_id","Gene","species","run_id")] %>% 
-      ggplot(aes(x = Gene,fill=species)) +
-      geom_bar() + 
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-      facet_grid(~run_id)
-  }
+# if there are consensus genes then print table
+if (nrow(output_df)==0){
+  print("There are no genes with consensus between at least 50% of samples")
+} else{
+  # update names
+  output_df$Sample=gsub(paste0("-",projectname),"",output_df$Sample)
 
+  merge(sampleDF,output_df, by.x="specimen_id",
+    by.y="Sample")[,c("specimen_id","Gene","species","run_id")] %>% 
+    ggplot(aes(x = Gene,fill=species)) +
+    geom_bar() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    facet_grid(~run_id)
+}
 ```
 
 Column {data-width=300}

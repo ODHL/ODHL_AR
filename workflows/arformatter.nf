@@ -118,7 +118,7 @@ workflow arFORMATTER {
         //// if the samples are test they wont be stored in basespace dir
         if (!file("${analysis_outdir}/basespace").isDirectory()) {
             all_fastq_files = Channel
-                .fromPath("/home/ubuntu/workflows/ODHL_AR/test/fastq/*fastq.gz")
+                .fromPath("${projectDir}/test/fastq/*fastq.gz")
                 .map (file -> file)
                 .collect()            
         } else {

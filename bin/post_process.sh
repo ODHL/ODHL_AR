@@ -35,13 +35,16 @@ IFS=$'\n' read -d '' -r -a sample_list < $processed_samples
 ## review lab results
 ## update pass/fail
 for sample_id in "${sample_list[@]}"; do
+	# set failure flag
+	failure=0
+
 	# pull stats
 	cat ${sample_id}_trimmed_read_counts.txt >> all_trimmed_read_counts.txt #stats.txt
 
 	# determine number of warnings, fails
 	synopsis=$sample_id.synopsis
 	num_of_warnings=`cat $synopsis | grep -v "WARNINGS" | grep "WARNING" | wc -l`
-	num_of_fails=`cat $synopsis | grep -v "completed as FAILED" | grep "FAILED" | wc -l`
+	num_of_fails=`cat $synopsis | grep -v "completed as FAILED" | grep -v "likely contaminated" | grep "FAILED" | wc -l`
 
 	# review lab results
 	labValue=`cat $lab_results | grep $sample_id | cut -f2 -d","`
@@ -59,15 +62,17 @@ for sample_id in "${sample_list[@]}"; do
 		mv tmp $rawPipeline_results
 
 		echo "$sample_id,FAIL,SeqFailure" >> $quality_results
-	elif [[ $num_of_warnings -gt 4 ]]; then
+		failure=1
+	elif [[ $num_of_warnings -gt 4 ]] && [[ $failure -eq 0 ]]; then
 		reason=$(cat $synopsis | grep -v "Summarized" | grep -E "WARNING" | awk -F": " '{print $3}' |  awk 'BEGIN { ORS = "; " } { print }' | sed "s/; ; //g")
 		cat $rawPipeline_results | awk -F";" -v i=$SID -v reason="${reason}" 'BEGIN {OFS = FS} NR==i {$2="FAIL"; $24=reason}1' > tmp
 		mv tmp $rawPipeline_results
 
 		echo "$sample_id,FAIL,WARNING($num_of_warnings)" >> $quality_results
+		failure=1
 	fi
 
-	if [[ $pipelineStatus == "PASS" ]]; then
+	if [[ $pipelineStatus == "PASS" ]] && [[ $failure -eq 0 ]]; then
 		if [[ "$pipelineValue" == "$labValue"  ]]; then
 			echo "$sample_id,PASS,NA" >> $quality_results
 		else

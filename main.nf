@@ -160,7 +160,7 @@ workflow arREPORT {
 //
 workflow outbreakANALYSIS {
     // set test samplesheet
-    samplesheet                 = file(params.input_gff)
+    samplesheet                 = file(params.input)
     ch_versions                 = Channel.empty()
 
     main:

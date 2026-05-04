@@ -62,6 +62,7 @@ mkdir -p $upload_dir
 # Run Code
 #########################################################
 # Check samples were not already uploaded
+if [[ -f $id_log ]]; then rm $id_log; fi
 echo "** CHECK **" >> $id_log
 awk -F"," '{print $2}' $idDB_results > passed_samples
 IFS=$'\n' read -d '' -r -a sample_list < passed_samples
@@ -107,6 +108,7 @@ for sampleID in "${sample_list[@]}"; do
 	echo "--sample upload: $sampleID" >> $id_log
 
 	# determine the sample line in the pipeline results
+	# sampleID=`echo $sampleID | cut -f1 -d"-"` # replace spaces with underscores for OB samples only
 	SID=$(awk -F"\t" -v sid=$sampleID '{ if ($1 == sid) print NR }' $pipeline_results)
 
 	# pull organism from results	
@@ -152,7 +154,7 @@ for sampleID in "${sample_list[@]}"; do
 		## breakoutput into chunks
 		chunk1="${wgsID}\t${wgsID}\t${sample_title}\t${config_library_strategy}\t${config_library_source}\t${config_library_selection}"
 		chunk2="${config_library_layout}\t${config_platform}\t${instrument_model}\t${config_design_description}\t${config_filetype}\t${wgsID}.R1.fastq.gz"
-		chunk3="${sampleID}.R2.fastq.gz\t${config_filename3}\t${config_filename4}\t${assembly}\t${config_fasta_file}"
+		chunk3="${wgsID}.R2.fastq.gz\t${config_filename3}\t${config_filename4}\t${assembly}\t${config_fasta_file}"
 		## add output variables to attributes file
 		echo -e "${chunk1}\t${chunk2}\t${chunk3}" >> $ncbi_metadata
 

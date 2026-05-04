@@ -9,8 +9,8 @@ process NCBI_POST {
 
     output:
     path("versions.yml")                        , emit: versions
-    path("id_db_results_postNCBI.csv")           , emit: ncbi_post_file
-
+    path("id_db_results_postNCBI.csv")          , emit: ncbi_post_file
+    path("id_db_master.csv")                    , emit: id_db_master
     script:
     """
     core_ncbi_post.sh \
