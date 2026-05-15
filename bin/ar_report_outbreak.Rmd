@@ -134,8 +134,9 @@ if (file.exists(dblookup)) {
   sampleDF$SAMID <- NULL
   sampleDF$DATE_ASSIGNED <- NULL
 }
+# Keep SRR blank when unavailable; do not substitute specimen IDs in the SRR column.
 sampleDF$srr_id <- ifelse(is.na(sampleDF$srr_id) | sampleDF$srr_id == "NO_ID" | sampleDF$srr_id == "",
-                           sampleDF$specimen_id, sampleDF$srr_id)
+                           NA_character_, sampleDF$srr_id)
 
 # Read in other data
 snpData <- read.csv(snpmatrix, sep = "\t", check.names = FALSE, row.names = 1)

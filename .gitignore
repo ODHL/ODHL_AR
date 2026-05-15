@@ -10,6 +10,7 @@ results/
 null/
 
 # internal files
+ob_analysis/samples.csv
 assets/databases/*/*master*
 assets/databases/*/*backup*
 assets/databases/*/cached/*

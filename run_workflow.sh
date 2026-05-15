@@ -17,6 +17,10 @@
 #############################################################################################
 source ~/.bashrc
 
+# Resolve workflow root so this script can run from any working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAIN_NF="$SCRIPT_DIR/main.nf"
+
 helpFunction()
 {
    echo ""
@@ -126,7 +130,7 @@ fi
 #########################################################################################
 # Run command
 cmd="nextflow run \
-   main.nf \
+   $MAIN_NF \
    $nextflowParams \
    -entry $entry \
    --outdir $outDir \
