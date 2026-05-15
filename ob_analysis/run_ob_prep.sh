@@ -390,10 +390,60 @@ END{
 }
 ' "$AR_PASS_TSV"
 
+# Secondary lookup: check db_master.csv for any samples still missing from ar_pass.tsv
+if [[ -s "$SOURCE_MISSING" && -n "$DB_MASTER_CSV" && -f "$DB_MASTER_CSV" ]]; then
+  awk -F',' -v MISS="$SOURCE_MISSING" -v RESOLVED="$SOURCE_RESOLVED" \
+      -v AR_PASS="$AR_PASS_TSV" '
+    function up(s){ return toupper(s) }
+    function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
+    function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
+    function trim(s){ return ltrim(rtrim(s)) }
+    function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+    function extract_species(sc, m){ sc=trim(sc); if (match(sc, /[A-Z][a-z]+ [a-z][A-Za-z.-]+/, m)) return m[0]; return "" }
+    function first_genus(species, a, n){ n=split(trim(species),a,/[[:space:]]+/); return (n>=1?a[1]:species) }
+    BEGIN {
+      while ((getline line < MISS) > 0) {
+        line=trim(line); sub(/\r$/,"",line)
+        if (line!="") miss[up(line)]=line
+      }
+      close(MISS)
+      # Load basespace_collection_id -> species from ar_pass for project-level inference
+      FS="\t"
+      if ((getline hdr < AR_PASS) > 0) {
+        split(hdr, H, FS)
+        for (i=1;i<=length(H);i++) hmap[H[i]]=i
+        while ((getline line < AR_PASS) > 0) {
+          split(line, a, FS)
+          bsc=trim((("basespace_collection_id" in hmap)?a[hmap["basespace_collection_id"]]:""))
+          sc=trim((("sequence_classification" in hmap)?a[hmap["sequence_classification"]]:""))
+          if (bsc!="" && sc!="") bsc_species[bsc]=extract_species(sc)
+        }
+      }
+      close(AR_PASS)
+      FS=","
+    }
+    NR==1 { next }  # skip db_master header
+    {
+      sub(/\r$/,"",0); n=split($0, a, FS)
+      proj=trim(a[1]); oid=canon_id(trim(a[2]))
+      if (oid=="" || !(oid in miss)) next
+      bsc=proj
+      sp=""
+      if (bsc in bsc_species) { full=bsc_species[bsc]; sp=first_genus(full) } else { full="" }
+      print oid "," sp "," bsc "," full >> RESOLVED
+      delete miss[oid]
+    }
+    END {
+      close(MISS); system("> " MISS)
+      for (id in miss) print miss[id] >> MISS
+    }
+  ' "$DB_MASTER_CSV"
+fi
+
 if [[ -s "$SOURCE_MISSING" ]]; then
-  echo "ERROR: source sample(s) missing from ar_pass.tsv:" >&2
+  echo "ERROR: source sample(s) missing from ar_pass.tsv and db_master.csv:" >&2
   cat "$SOURCE_MISSING" >&2
-  echo "Add missing rows to ar_pass.tsv before running outbreak prep." >&2
+  echo "Add missing rows to ar_pass.tsv or db_master.csv before running outbreak prep." >&2
   exit 1
 fi
 
