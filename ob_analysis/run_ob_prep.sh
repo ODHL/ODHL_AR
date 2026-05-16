@@ -155,8 +155,8 @@ function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
 function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
 function csv(f){ gsub(/\r$/,"",f); gsub(/"/,"\"\"",f); if(f ~ /[", ]/) return "\"" f "\""; return f }
-function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+([_-].*)?$/) }
-function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+(REPEAT)?([_-].*)?$/) }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); sub(/REPEAT$/, "", s); return s }
 function is_date(s){ s=trim(s); return (s ~ /^[0-9]{2}[-\/][0-9]{2}[-\/][0-9]{4}$/ || s ~ /^[0-9]{4}[-\/][0-9]{2}[-\/][0-9]{2}$/) }
 
 BEGIN{
@@ -185,7 +185,7 @@ BEGIN{
     while ((getline line < DBM) > 0) {
       sub(/\r$/,"",line); if (line=="") continue
       split(line, a, FS)
-      proj=trim(a[1]); oid=up(trim(a[2]))
+      proj=trim(a[1]); oid=canon_id(trim(a[2]))
       wgs=trim(a[3]); srr=trim(a[4]); sam=trim(a[5]); dat=trim(a[6])
       if (oid=="") continue
       complete=(srr!="" && srr!="NA" && sam!="" && sam!="NA")
@@ -214,7 +214,7 @@ BEGIN{
     sub(/\r$/,"",line); if (line=="") continue
     split(line, a, FS)
     sid_raw=(("entity:ar_pass_id" in mapM) ? a[mapM["entity:ar_pass_id"]] : "")
-    sid_key=up(trim(sid_raw))
+    sid_key=canon_id(sid_raw)
     if (sid_key=="") continue
     M_sid[sid_key]=sid_raw
     M_bsc[sid_key]=(("basespace_collection_id" in mapM) ? a[mapM["basespace_collection_id"]] : "")
@@ -237,7 +237,7 @@ BEGIN{
         sub(/\r$/,"",line); if (line=="") continue
         split(line, b, FS)
         esid_raw=(("specimen_id" in mapE) ? b[mapE["specimen_id"]] : "")
-        esid_key=up(trim(esid_raw))
+        esid_key=canon_id(esid_raw)
         if (esid_key=="") continue
         E_sid[esid_key]=esid_raw
         E_iso[esid_key]=(("isolation_source" in mapE) ? b[mapE["isolation_source"]] : "")
@@ -299,8 +299,8 @@ function up(s){ return toupper(s) }
 function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
 function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
-function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+([_-].*)?$/) }
-function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function is_id(s){ s=up(trim(s)); return (s ~ /^[0-9]{2}AR[0-9]+(REPEAT)?([_-].*)?$/) }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); sub(/REPEAT$/, "", s); return s }
 
 BEGIN{ FS="[,\t]" }
 {
@@ -336,7 +336,7 @@ function up(s){ return toupper(s) }
 function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
 function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
-function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); sub(/REPEAT$/, "", s); return s }
 function first_genus(species, a, n){
   species=trim(species)
   n=split(species, a, /[[:space:]]+/)
@@ -398,7 +398,7 @@ if [[ -s "$SOURCE_MISSING" && -n "$DB_MASTER_CSV" && -f "$DB_MASTER_CSV" ]]; the
     function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
     function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
     function trim(s){ return ltrim(rtrim(s)) }
-    function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+    function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); sub(/REPEAT$/, "", s); return s }
     function extract_species(sc, m){ sc=trim(sc); if (match(sc, /[A-Z][a-z]+ [a-z][A-Za-z.-]+/, m)) return m[0]; return "" }
     function first_genus(species, a, n){ n=split(trim(species),a,/[[:space:]]+/); return (n>=1?a[1]:species) }
     BEGIN {
@@ -464,7 +464,7 @@ function up(s){ return toupper(s) }
 function rtrim(s){ sub(/[ \t\r\n]+$/, "", s); return s }
 function ltrim(s){ sub(/^[ \t\r\n]+/, "", s); return s }
 function trim(s){ return ltrim(rtrim(s)) }
-function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); return s }
+function canon_id(s){ s=up(trim(s)); sub(/[_-].*/, "", s); sub(/REPEAT$/, "", s); return s }
 function first_genus(species, a, n){
   species=trim(species)
   n=split(species, a, /[[:space:]]+/)
@@ -547,16 +547,20 @@ build_metadata_csv "$SELECTED_META" "$AR_PASS_TSV" "$EXTRA_TSV" "$DB_MASTER_CSV"
 
 echo "sample,results" > "$OUTDIR/labResults.csv"
 awk -F',' -v species="$outbreak_species" 'NR>1 && $1!="" && $3!="" {
-  proj=$3; sub(/_AR$/, "", proj)
-  print $1 "-" proj "," species
+  sid=toupper($1)
+  sub(/REPEAT$/, "", sid)
+  proj=$3
+  sub(/_AR$/, "", proj)
+  print sid "-" proj "," species
 }' "$MATCHED_DB" >> "$OUTDIR/labResults.csv"
 
 echo "sample,fastq_1,fastq_2" > "$OUTDIR/samplesheet.csv"
-awk -F',' 'NR>1 && $1!="" && $3!="" {
-  proj=$3; sub(/_AR$/, "", proj)
-  name=$1 "-" proj
+awk -F',' 'NR>1 && $1!="" {
+  print $1
+}' "$OUTDIR/labResults.csv" | awk -F',' '{
+  name=$1
   print name "," name ".R1.fastq.gz," name ".R2.fastq.gz"
-}' "$MATCHED_DB" >> "$OUTDIR/samplesheet.csv"
+}' >> "$OUTDIR/samplesheet.csv"
 
 cp "$METADATA_OUT" "$OUTDIR/${PROJECT}_metadata.csv"
 

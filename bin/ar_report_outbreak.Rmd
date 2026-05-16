@@ -151,13 +151,16 @@ generate_ids <- function(list_in) which(colnames(sampleDF) %ni% list_in) - 1
 id_nums  <- generate_ids(c("auto_qc_outcome","specimen_id","lab_results","srr_id","samn_id","wgs_id","mlst1","healthcare_origin","seq_date"))
 tax_nums <- generate_ids(c("specimen_id","species","sequence_classification","mlst_1","gamma_beta_lactam_resistance_genes"))
 qc_nums  <- generate_ids(c("specimen_id","estimated_coverage","genome_length","auto_qc_failure_reason"))
-sample_meta <- crosstalk::SharedData$new(sampleDF)
+strip_repeat_suffix <- function(x) sub("repeat$", "", x, ignore.case = TRUE)
+sampleDF_display <- sampleDF
+sampleDF_display$specimen_id <- strip_repeat_suffix(sampleDF_display$specimen_id)
+sample_meta <- crosstalk::SharedData$new(sampleDF_display)
 ```
 
 ```{r summarytext, echo=FALSE}
 pass_n        <- nrow(subset(sampleDF, auto_qc_outcome == "PASS"))
 failed_n      <- nrow(subset(sampleDF, auto_qc_outcome != "PASS"))
-failed_samples<- subset(sampleDF, auto_qc_outcome != "PASS")$specimen_id
+failed_samples<- strip_repeat_suffix(subset(sampleDF, auto_qc_outcome != "PASS")$specimen_id)
 ref_samples   <- length(ref_ids)
 
 summaryTEXT <- paste0("There were ", nrow(sampleDF)," samples analyzed and ",
@@ -294,7 +297,7 @@ if (exists('treepath') & !is.null(ape::read.tree(treepath))) {
     layout_dendrogram() +
     geom_tippoint(aes(fill = factor(mlst), x = x + .5), size = 6, shape = 21, color = 'black') +
     geom_tiplab(aes(label = ref), size = 2.5, offset = -.4, color = 'black') +
-    geom_tiplab(hjust = 1, offset = -1.5, show.legend = FALSE) +
+    geom_tiplab(aes(label = strip_repeat_suffix(label)), hjust = 1, offset = -1.5, show.legend = FALSE) +
     theme_dendrogram(plot.margin = margin(0, 0, 80, 0))
 }
 ```
@@ -317,6 +320,7 @@ amr_matrix <- data.frame(Sample = sampleDF$specimen_id, stringsAsFactors = FALSE
 for (g in all_genes) {
   amr_matrix[[g]] <- ifelse(amr_matrix$Sample %in% src_ar$Sample[src_ar$Gene == g], "X", "")
 }
+amr_matrix$Sample <- strip_repeat_suffix(amr_matrix$Sample)
 DT::datatable(
   amr_matrix,
   rownames = FALSE,
@@ -408,7 +412,7 @@ if (exists('treepath') & !is.null(ape::read.tree(treepath))) {
   ggtree_plot2 %<+% d2 +
     layout_dendrogram() +
     geom_tippoint(aes(fill = factor(month), x = x + .5), size = 6, shape = 21, color = 'black') +
-    geom_tiplab(hjust = 1, offset = -1.5, show.legend = FALSE) +
+    geom_tiplab(aes(label = strip_repeat_suffix(label)), hjust = 1, offset = -1.5, show.legend = FALSE) +
     theme_dendrogram(plot.margin = margin(0, 0, 80, 0)) +
     labs(fill = "Seq Month")
 }
